@@ -1,5 +1,10 @@
 import { Command } from 'commander'
-import { loadConfig, writePersistedConfig, getConfigPath } from '../config.js'
+import {
+  loadConfig,
+  writePersistedConfig,
+  removeProviderConfig,
+  getConfigPath,
+} from '../config.js'
 import { listProviders } from '../providers/registry.js'
 import * as out from '../utils/output.js'
 
@@ -7,24 +12,32 @@ function showConfig(asJson: boolean): void {
   const cfg = loadConfig()
   const mask = (val: string) => (val ? '***' + val.slice(-4) : 'not set')
 
+  const data = {
+    provider: cfg.provider,
+    outputDir: cfg.outputDir,
+    configPath: getConfigPath(),
+    higgsfield: {
+      apiKey: mask(cfg.higgsfield.apiKey),
+      apiSecret: mask(cfg.higgsfield.apiSecret),
+    },
+    freepik: {
+      apiKey: mask(cfg.freepik.apiKey),
+    },
+  }
+
   if (asJson) {
-    out.json({
-      provider: cfg.provider,
-      outputDir: cfg.outputDir,
-      configPath: getConfigPath(),
-      higgsfield: {
-        apiKey: mask(cfg.higgsfield.apiKey),
-        apiSecret: mask(cfg.higgsfield.apiSecret),
-      },
-    })
+    out.json(data)
     return
   }
 
   out.info(`Config file: ${getConfigPath()}`)
   out.info(`Provider: ${cfg.provider}`)
   out.info(`Output dir: ${cfg.outputDir}`)
+  console.log('')
   out.info(`Higgsfield API Key: ${mask(cfg.higgsfield.apiKey)}`)
   out.info(`Higgsfield API Secret: ${mask(cfg.higgsfield.apiSecret)}`)
+  console.log('')
+  out.info(`Freepik API Key: ${mask(cfg.freepik.apiKey)}`)
 }
 
 export function createConfigCommand(): Command {
@@ -52,19 +65,21 @@ Examples:
       'after',
       `
 Available keys:
-  provider          Default provider (e.g. higgsfield)
+  provider          Default provider (freepik, higgsfield)
   output-dir        Default output directory
   api-key           API key for the current provider
-  api-secret        API secret for the current provider
+  api-secret        API secret (Higgsfield only)
 
 Examples:
+  $ mediagen config set provider freepik
   $ mediagen config set api-key fpk_abc123
-  $ mediagen config set api-secret sk_xyz789
   $ mediagen config set provider higgsfield
+  $ mediagen config set api-key hf_key_here
+  $ mediagen config set api-secret hf_secret_here
   $ mediagen config set output-dir ./public/assets
 
 Config is saved to ~/.config/mediagen/config.json
-Environment variables (HF_API_KEY, HF_API_SECRET) take priority over saved config.`
+Environment variables take priority over saved config.`
     )
     .action((key: string, value: string) => {
       const cfg = loadConfig()
@@ -89,6 +104,8 @@ Environment variables (HF_API_KEY, HF_API_SECRET) take priority over saved confi
         case 'api-key':
           if (cfg.provider === 'higgsfield') {
             writePersistedConfig({ higgsfield: { apiKey: value } })
+          } else if (cfg.provider === 'freepik') {
+            writePersistedConfig({ freepik: { apiKey: value } })
           }
           out.success(`API key saved for ${cfg.provider}`)
           break
@@ -96,8 +113,9 @@ Environment variables (HF_API_KEY, HF_API_SECRET) take priority over saved confi
         case 'api-secret':
           if (cfg.provider === 'higgsfield') {
             writePersistedConfig({ higgsfield: { apiSecret: value } })
+          } else {
+            out.warn(`${cfg.provider} does not use an API secret.`)
           }
-          out.success(`API secret saved for ${cfg.provider}`)
           break
 
         default:
@@ -106,6 +124,35 @@ Environment variables (HF_API_KEY, HF_API_SECRET) take priority over saved confi
               'Available keys: provider, output-dir, api-key, api-secret'
           )
           process.exit(1)
+      }
+    })
+
+  config
+    .command('remove')
+    .description('Remove API credentials for a provider')
+    .argument('<provider>', 'Provider to remove credentials for (freepik, higgsfield)')
+    .addHelpText(
+      'after',
+      `
+Examples:
+  $ mediagen config remove freepik
+  $ mediagen config remove higgsfield
+
+This removes the stored API key (and secret) for the specified provider.
+Environment variables are not affected.`
+    )
+    .action((provider: string) => {
+      const available = listProviders()
+      if (!available.includes(provider)) {
+        out.error(`Unknown provider "${provider}". Available: ${available.join(', ')}`)
+        process.exit(1)
+      }
+
+      const removed = removeProviderConfig(provider)
+      if (removed) {
+        out.success(`Credentials removed for ${provider}`)
+      } else {
+        out.warn(`No credentials found for ${provider}`)
       }
     })
 
@@ -120,9 +167,13 @@ Environment variables (HF_API_KEY, HF_API_SECRET) take priority over saved confi
     .command('providers')
     .description('List available providers')
     .action(() => {
+      const cfg = loadConfig()
       const providers = listProviders()
       out.info('Available providers:')
-      providers.forEach((p) => console.log(`  - ${p}`))
+      providers.forEach((p) => {
+        const active = p === cfg.provider ? ' (active)' : ''
+        console.log(`  - ${p}${active}`)
+      })
     })
 
   // Default: show config when no subcommand given

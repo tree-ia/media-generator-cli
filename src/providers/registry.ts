@@ -1,10 +1,12 @@
 import type { Provider } from './types.js'
 import type { AppConfig } from '../config.js'
 import { HiggsFieldProvider } from './higgsfield/index.js'
+import { FreepikProvider } from './freepik/index.js'
 
 const providers = new Map<string, (config: AppConfig) => Provider>()
 
 providers.set('higgsfield', (config) => new HiggsFieldProvider(config))
+providers.set('freepik', (config) => new FreepikProvider(config))
 
 export function getProvider(name: string, config: AppConfig): Provider {
   const factory = providers.get(name)

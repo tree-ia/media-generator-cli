@@ -39,7 +39,7 @@ export interface StatusResult {
 export interface Model {
   id: string
   name: string
-  type: 'image' | 'video' | 'speech'
+  type: 'image' | 'video' | 'speech' | 'audio'
   description?: string
 }
 

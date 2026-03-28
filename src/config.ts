@@ -15,14 +15,20 @@ export interface AppConfig {
     apiKey: string
     apiSecret: string
   }
+  freepik: {
+    apiKey: string
+  }
 }
 
-interface PersistedConfig {
+export interface PersistedConfig {
   provider?: string
   outputDir?: string
   higgsfield?: {
     apiKey?: string
     apiSecret?: string
+  }
+  freepik?: {
+    apiKey?: string
   }
 }
 
@@ -37,17 +43,39 @@ function readPersistedConfig(): PersistedConfig {
 
 export function writePersistedConfig(update: PersistedConfig): void {
   const current = readPersistedConfig()
-  const merged = {
+  const merged: PersistedConfig = {
     ...current,
     ...update,
-    higgsfield: {
-      ...current.higgsfield,
-      ...update.higgsfield,
-    },
+  }
+
+  // Deep merge provider-specific configs
+  if (update.higgsfield || current.higgsfield) {
+    merged.higgsfield = { ...current.higgsfield, ...update.higgsfield }
+  }
+  if (update.freepik || current.freepik) {
+    merged.freepik = { ...current.freepik, ...update.freepik }
   }
 
   mkdirSync(CONFIG_DIR, { recursive: true })
   writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2) + '\n', 'utf-8')
+}
+
+export function removeProviderConfig(providerName: string): boolean {
+  const current = readPersistedConfig()
+
+  if (providerName === 'higgsfield' && current.higgsfield) {
+    delete current.higgsfield
+    writeFileSync(CONFIG_FILE, JSON.stringify(current, null, 2) + '\n', 'utf-8')
+    return true
+  }
+
+  if (providerName === 'freepik' && current.freepik) {
+    delete current.freepik
+    writeFileSync(CONFIG_FILE, JSON.stringify(current, null, 2) + '\n', 'utf-8')
+    return true
+  }
+
+  return false
 }
 
 export function getConfigPath(): string {
@@ -59,11 +87,14 @@ export function loadConfig(): AppConfig {
   const persisted = readPersistedConfig()
 
   return {
-    provider: process.env.MEDIAGEN_PROVIDER ?? persisted.provider ?? 'higgsfield',
+    provider: process.env.MEDIAGEN_PROVIDER ?? persisted.provider ?? 'freepik',
     outputDir: process.env.MEDIAGEN_OUTPUT_DIR ?? persisted.outputDir ?? './output',
     higgsfield: {
       apiKey: process.env.HF_API_KEY ?? persisted.higgsfield?.apiKey ?? '',
       apiSecret: process.env.HF_API_SECRET ?? persisted.higgsfield?.apiSecret ?? '',
+    },
+    freepik: {
+      apiKey: process.env.FREEPIK_API_KEY ?? persisted.freepik?.apiKey ?? '',
     },
   }
 }
