@@ -4,19 +4,41 @@ CLI for AI media generation — images and videos from text prompts. Built for d
 
 Supports multiple providers with an extensible architecture. Currently ships with **Higgsfield** (Soul for images, DoP for videos).
 
-## Installation
+## Quick setup
+
+One command does everything — installs dependencies, builds, links globally, installs the Claude Code skill, and configures credentials:
 
 ```bash
-# Clone and install
-git clone <repo-url> media-generator-cli
+git clone git@github.com:tree-ia/media-generator-cli.git
+cd media-generator-cli
+./setup.sh
+```
+
+The setup script will:
+1. Install dependencies (`npm install`)
+2. Build the project (`tsc`)
+3. Link `mediagen` globally (`npm link`)
+4. Install the Claude Code skill at `~/.claude/skills/mediagen/`
+5. Prompt for Higgsfield API credentials (saved to `~/.config/mediagen/config.json`)
+
+### Manual installation
+
+If you prefer to set things up manually:
+
+```bash
+git clone git@github.com:tree-ia/media-generator-cli.git
 cd media-generator-cli
 npm install
-
-# Build
 npm run build
-
-# Link globally (makes `mediagen` available everywhere)
 npm link
+
+# Install Claude Code skill
+mkdir -p ~/.claude/skills/mediagen
+cp skills/SKILL.md ~/.claude/skills/mediagen/SKILL.md
+
+# Configure credentials
+mediagen config set api-key YOUR_KEY
+mediagen config set api-secret YOUR_SECRET
 ```
 
 ### Verify installation
