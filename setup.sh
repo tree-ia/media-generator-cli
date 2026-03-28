@@ -6,6 +6,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
+DIM='\033[2m'
 NC='\033[0m'
 
 info()    { echo -e "${BLUE}ℹ${NC} $1"; }
@@ -16,6 +17,7 @@ error()   { echo -e "${RED}✗${NC} $1"; exit 1; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$HOME/.claude/skills/mediagen"
 CONFIG_DIR="$HOME/.config/mediagen"
+CONFIG_FILE="$CONFIG_DIR/config.json"
 
 echo -e "\n${BOLD}mediagen — setup${NC}\n"
 
@@ -42,43 +44,103 @@ mkdir -p "$SKILL_DIR"
 cp "$SCRIPT_DIR/skills/SKILL.md" "$SKILL_DIR/SKILL.md"
 success "Skill installed at $SKILL_DIR/SKILL.md"
 
-# --- 5. Configure credentials ---
-if [ -f "$CONFIG_DIR/config.json" ]; then
-  EXISTING_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_DIR/config.json','utf8'));console.log(c.higgsfield?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
-  if [ "$EXISTING_KEY" = "yes" ]; then
-    success "Credentials already configured"
-    SKIP_CREDS=true
-  fi
-fi
+# --- 5. Choose provider and configure credentials ---
+echo ""
+echo -e "${BOLD}Provider Setup${NC}"
+echo ""
+echo "  Available providers:"
+echo ""
+echo "    1) ${BOLD}freepik${NC}    — 10+ image models, €5 free credit, pay-as-you-go"
+echo "                      Get key: ${DIM}https://www.freepik.com/api${NC}"
+echo ""
+echo "    2) ${BOLD}higgsfield${NC} — Soul, DoP video, Kling, Seedance"
+echo "                      Get keys: ${DIM}https://cloud.higgsfield.ai/api-keys${NC}"
+echo ""
+echo "    s) ${BOLD}skip${NC}       — Configure later with: mediagen config set ..."
+echo ""
 
-if [ "$SKIP_CREDS" != "true" ]; then
-  echo ""
-  info "No credentials found. Let's configure Higgsfield."
-  info "Get your keys at: https://cloud.higgsfield.ai/api-keys"
-  echo ""
+read -rp "  Choose provider [1/2/s]: " CHOICE
 
-  read -rp "  API Key: " API_KEY
-  read -rp "  API Secret: " API_SECRET
+case "$CHOICE" in
+  1|freepik)
+    mediagen config set provider freepik 2>/dev/null
 
-  if [ -n "$API_KEY" ] && [ -n "$API_SECRET" ]; then
-    mediagen config set api-key "$API_KEY" 2>/dev/null
-    mediagen config set api-secret "$API_SECRET" 2>/dev/null
-    success "Credentials saved to $CONFIG_DIR/config.json"
-  else
-    warn "Skipped. Configure later with:"
-    echo "  mediagen config set api-key YOUR_KEY"
-    echo "  mediagen config set api-secret YOUR_SECRET"
-  fi
-fi
+    # Check if already configured
+    HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.freepik?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
+    if [ "$HAS_KEY" = "yes" ]; then
+      success "Freepik credentials already configured"
+    else
+      echo ""
+      info "Enter your Freepik API key"
+      info "Get one at: https://www.freepik.com/api → Developer Dashboard"
+      echo ""
+      read -rp "  API Key: " FP_KEY
+
+      if [ -n "$FP_KEY" ]; then
+        mediagen config set api-key "$FP_KEY" 2>/dev/null
+        success "Freepik API key saved"
+      else
+        warn "Skipped. Configure later: mediagen config set api-key YOUR_KEY"
+      fi
+    fi
+    ;;
+
+  2|higgsfield)
+    mediagen config set provider higgsfield 2>/dev/null
+
+    HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.higgsfield?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
+    if [ "$HAS_KEY" = "yes" ]; then
+      success "Higgsfield credentials already configured"
+    else
+      echo ""
+      info "Enter your Higgsfield credentials (Creator plan required)"
+      info "Get them at: https://cloud.higgsfield.ai/api-keys"
+      echo ""
+      read -rp "  API Key: " HF_KEY
+      read -rp "  API Secret: " HF_SECRET
+
+      if [ -n "$HF_KEY" ] && [ -n "$HF_SECRET" ]; then
+        mediagen config set api-key "$HF_KEY" 2>/dev/null
+        mediagen config set api-secret "$HF_SECRET" 2>/dev/null
+        success "Higgsfield credentials saved"
+      else
+        warn "Skipped. Configure later:"
+        echo "    mediagen config set api-key YOUR_KEY"
+        echo "    mediagen config set api-secret YOUR_SECRET"
+      fi
+    fi
+    ;;
+
+  s|skip|"")
+    warn "Skipped provider setup. Configure later:"
+    echo "    mediagen config set provider freepik"
+    echo "    mediagen config set api-key YOUR_KEY"
+    ;;
+
+  *)
+    warn "Invalid choice. Skipping provider setup."
+    ;;
+esac
 
 # --- Done ---
 echo ""
 echo -e "${BOLD}${GREEN}Setup complete!${NC}"
 echo ""
-echo "  Try it out:"
-echo "    mediagen --help"
-echo "    mediagen models"
-echo "    mediagen image generate --prompt \"test\" --no-poll"
+echo "  Quick start:"
+echo "    mediagen --help              Show all commands"
+echo "    mediagen models              List available models"
+echo "    mediagen config              Show current config"
+echo "    mediagen config providers    List providers"
+echo ""
+echo "  Generate an image:"
+echo "    mediagen image generate --prompt \"a sunset over the ocean\" --output ./sunset.png"
+echo ""
+echo "  Switch provider anytime:"
+echo "    mediagen config set provider freepik"
+echo "    mediagen config set provider higgsfield"
+echo ""
+echo "  Remove credentials:"
+echo "    mediagen config remove freepik"
 echo ""
 echo "  Claude Code will automatically use mediagen when you"
 echo "  ask it to generate images or videos for your project."
