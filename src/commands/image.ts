@@ -12,9 +12,9 @@ export function createImageCommand(): Command {
     .command('generate')
     .description('Generate an image from a text prompt')
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the image')
-    .option('-m, --model <model>', 'Model to use (default: soul)', 'soul')
-    .option('-s, --size <WxH>', 'Image size, e.g. 2048x1152 (default: 1536x1536)', '1536x1536')
-    .option('-q, --quality <quality>', 'Quality: 720p or 1080p (default: 1080p)', '1080p')
+    .option('-m, --model <model>', 'Model to use (default: nano-banana-2)')
+    .option('-s, --size <size>', 'Size: aspect ratio for V2 (1:1, 16:9) or WxH for Soul (2048x1152)')
+    .option('-q, --quality <quality>', 'Quality/resolution: 0.5K, 1K, 2K (default), 4K for V2; 720p, 1080p for Soul')
     .option('-o, --output <path>', 'Save image to local file')
     .option('--style <id>', 'Style ID (use "mediagen styles" to list)')
     .option('--style-strength <n>', 'Style strength 0.0-1.0', parseFloat)
@@ -29,15 +29,27 @@ export function createImageCommand(): Command {
       `
 Examples:
   $ mediagen image generate --prompt "modern office building at sunset"
-  $ mediagen image generate --prompt "hero banner" --size 2048x1152 --output ./public/hero.png
-  $ mediagen image generate --prompt "worker portrait" --character abc123 --quality 1080p
-  $ mediagen image generate --prompt "abstract pattern" --style xyz789 --style-strength 0.8
-  $ mediagen image generate --prompt "test" --no-poll  # returns request ID immediately
+  $ mediagen image generate --prompt "hero banner" --size 16:9 --quality 4K --output ./public/hero.png
+  $ mediagen image generate --prompt "logo design" --model nano-banana-pro --output ./logo.png
+  $ mediagen image generate --prompt "landscape" --model seedream --size 16:9 --output ./bg.png
+  $ mediagen image generate --prompt "portrait" --model soul --size 1152x2048 --quality 1080p
+  $ mediagen image generate --prompt "test" --no-poll
 
-Available sizes:
-  2048x1152, 2048x1536, 2016x1344, 1696x960, 1632x1088,
-  1536x1536 (default), 1536x1152, 1152x1536, 1152x2048,
-  1536x2048, 1344x2016, 960x1696, 1088x1632`
+Models (run "mediagen models" for full list):
+  nano-banana-2  (default) Fast, Gemini-based, 0.5K-4K
+  nano-banana-pro          High quality, detailed
+  flux-kontext             Flux Kontext Max
+  seedream                 ByteDance Seedream v4
+  soul                     Higgsfield Soul (legacy V1, supports styles/characters)
+
+V2 models (nano-banana, flux, seedream):
+  --size: aspect ratio (1:1, 16:9, 9:16, 4:3, 3:2, 21:9)
+  --quality: resolution (0.5K, 1K, 2K, 4K)
+
+Soul model (V1):
+  --size: pixel dimensions (2048x1152, 1536x1536, etc.)
+  --quality: 720p or 1080p
+  --style, --character: only available with Soul`
     )
     .action(async (opts) => {
       const config = loadConfig()

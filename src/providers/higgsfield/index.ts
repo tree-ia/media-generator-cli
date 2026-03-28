@@ -15,6 +15,7 @@ import type {
 import {
   createClient,
   generateImage,
+  generateImageV2,
   generateVideo,
   fetchStyles,
   fetchMotions,
@@ -24,9 +25,10 @@ import {
 } from './client.js'
 import {
   HIGGSFIELD_MODELS,
-  DEFAULT_SIZE,
-  DEFAULT_QUALITY,
+  DEFAULT_IMAGE_MODEL,
   DEFAULT_VIDEO_MODEL,
+  getModelConfig,
+  toPublicModel,
 } from './models.js'
 
 export class HiggsFieldProvider implements Provider {
@@ -46,10 +48,38 @@ export class HiggsFieldProvider implements Provider {
   }
 
   async generateImage(opts: ImageOptions): Promise<GenerationResult> {
+    const modelId = opts.model ?? DEFAULT_IMAGE_MODEL
+    const modelCfg = getModelConfig(modelId)
+
+    if (!modelCfg) {
+      throw new Error(
+        `Unknown model "${modelId}". Run "mediagen models" to see available models.`
+      )
+    }
+
+    // V2 models (Nano Banana, Flux, Seedream)
+    if (modelCfg.api === 'v2') {
+      const result = await generateImageV2(this.config, {
+        endpoint: modelCfg.endpoint,
+        prompt: opts.prompt,
+        resolution: opts.quality ?? '2K',
+        aspectRatio: opts.size ?? '1:1',
+        seed: opts.seed,
+        withPolling: !opts.noPoll,
+      })
+
+      return {
+        requestId: result.requestId,
+        status: this.mapStatus(result.status),
+        url: result.url,
+      }
+    }
+
+    // V1 models (Soul)
     const jobSet = await generateImage(this.client, {
       prompt: opts.prompt,
-      size: opts.size ?? DEFAULT_SIZE,
-      quality: opts.quality ?? DEFAULT_QUALITY,
+      size: opts.size ?? '1536x1536',
+      quality: opts.quality ?? '1080p',
       styleId: opts.style,
       styleStrength: opts.styleStrength,
       characterId: opts.character,
@@ -59,17 +89,14 @@ export class HiggsFieldProvider implements Provider {
     })
 
     const job = jobSet.jobs[0]
-    const url = job?.results?.raw?.url
-
     return {
       requestId: jobSet.id,
       status: this.mapStatus(job?.status ?? 'queued'),
-      url,
+      url: job?.results?.raw?.url,
     }
   }
 
   async generateVideo(opts: VideoOptions): Promise<GenerationResult> {
-    // If image is a local file, upload first
     let imageUrl = opts.image
     if (!opts.image.startsWith('http')) {
       const buffer = await readFile(opts.image)
@@ -87,12 +114,10 @@ export class HiggsFieldProvider implements Provider {
     })
 
     const job = jobSet.jobs[0]
-    const url = job?.results?.raw?.url
-
     return {
       requestId: jobSet.id,
       status: this.mapStatus(job?.status ?? 'queued'),
-      url,
+      url: job?.results?.raw?.url,
     }
   }
 
@@ -104,35 +129,51 @@ export class HiggsFieldProvider implements Provider {
       )
     }
 
-    const response = await fetch(
+    // Try V2 status first, fallback to V1
+    const endpoints = [
+      `https://platform.higgsfield.ai/requests/${requestId}/status`,
       `https://platform.higgsfield.ai/v1/job-sets/${requestId}`,
-      {
+    ]
+
+    for (const url of endpoints) {
+      const response = await fetch(url, {
         headers: {
           'hf-api-key': apiKey,
           'hf-secret': apiSecret,
+          Authorization: `Key ${apiKey}:${apiSecret}`,
         },
+      })
+
+      if (!response.ok) continue
+
+      const data = (await response.json()) as Record<string, unknown>
+
+      // V2 format
+      if (data.request_id) {
+        return {
+          requestId: data.request_id as string,
+          status: (data.status as string) ?? 'unknown',
+          url: ((data.images as Array<{ url: string }>) ?? [])[0]?.url
+            ?? (data.video as { url: string })?.url,
+        }
       }
-    )
 
-    if (!response.ok) {
-      throw new Error(`Failed to get status: ${response.status} ${response.statusText}`)
+      // V1 format
+      if (data.jobs) {
+        const job = (data.jobs as Array<{ status: string; results?: { raw?: { url: string } } }>)[0]
+        return {
+          requestId: data.id as string,
+          status: job?.status ?? 'unknown',
+          url: job?.results?.raw?.url,
+        }
+      }
     }
 
-    const data = (await response.json()) as {
-      id: string
-      jobs: Array<{ status: string; results?: { raw?: { url: string } } }>
-    }
-    const job = data.jobs[0]
-
-    return {
-      requestId: data.id,
-      status: job?.status ?? 'unknown',
-      url: job?.results?.raw?.url,
-    }
+    throw new Error(`Failed to get status for request: ${requestId}`)
   }
 
   async listModels(): Promise<Model[]> {
-    return HIGGSFIELD_MODELS
+    return HIGGSFIELD_MODELS.map(toPublicModel)
   }
 
   async listStyles(): Promise<Style[]> {
