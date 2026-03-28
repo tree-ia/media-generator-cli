@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises'
-import type { HiggsfieldClient } from '@higgsfield/client'
+import { extname } from 'path'
 import type { AppConfig } from '../../config.js'
 import type {
   Provider,
@@ -13,15 +13,12 @@ import type {
   Character,
 } from '../types.js'
 import {
-  createClient,
-  generateImage,
-  generateImageV2,
-  generateVideo,
-  fetchStyles,
-  fetchMotions,
+  getCredentials,
+  submitGeneration,
+  pollUntilDone,
+  getStatus,
   uploadImage,
-  createSoulId,
-  listSoulIds,
+  type HFCredentials,
 } from './client.js'
 import {
   HIGGSFIELD_MODELS,
@@ -33,143 +30,110 @@ import {
 
 export class HiggsFieldProvider implements Provider {
   name = 'higgsfield'
-  private _client: HiggsfieldClient | null = null
   private config: AppConfig
+  private _creds: HFCredentials | null = null
 
   constructor(config: AppConfig) {
     this.config = config
   }
 
-  private get client(): HiggsfieldClient {
-    if (!this._client) {
-      this._client = createClient(this.config)
+  private get creds(): HFCredentials {
+    if (!this._creds) {
+      this._creds = getCredentials(this.config)
     }
-    return this._client
+    return this._creds
   }
 
   async generateImage(opts: ImageOptions): Promise<GenerationResult> {
     const modelId = opts.model ?? DEFAULT_IMAGE_MODEL
     const modelCfg = getModelConfig(modelId)
 
-    if (!modelCfg) {
+    if (!modelCfg || modelCfg.type !== 'image') {
       throw new Error(
-        `Unknown model "${modelId}". Run "mediagen models" to see available models.`
+        `Unknown image model "${modelId}". Run "mediagen models" to see available models.`
       )
     }
 
-    // V2 models (Nano Banana, Flux, Seedream)
-    if (modelCfg.api === 'v2') {
-      const result = await generateImageV2(this.config, {
-        endpoint: modelCfg.endpoint,
-        prompt: opts.prompt,
-        resolution: opts.quality ?? '2K',
-        aspectRatio: opts.size ?? '1:1',
-        seed: opts.seed,
-        withPolling: !opts.noPoll,
-      })
+    const body: Record<string, unknown> = {
+      prompt: opts.prompt,
+    }
 
+    if (opts.size) body.aspect_ratio = opts.size
+    if (opts.quality) body.resolution = opts.quality
+    if (opts.seed !== undefined) body.seed = opts.seed
+
+    const queued = await submitGeneration(this.creds, modelCfg.endpoint, body)
+
+    if (opts.noPoll) {
       return {
-        requestId: result.requestId,
-        status: this.mapStatus(result.status),
-        url: result.url,
+        requestId: queued.request_id,
+        status: 'queued',
       }
     }
 
-    // V1 models (Soul)
-    const jobSet = await generateImage(this.client, {
-      prompt: opts.prompt,
-      size: opts.size ?? '1536x1536',
-      quality: opts.quality ?? '1080p',
-      styleId: opts.style,
-      styleStrength: opts.styleStrength,
-      characterId: opts.character,
-      characterStrength: opts.characterStrength,
-      seed: opts.seed,
-      withPolling: !opts.noPoll,
-    })
-
-    const job = jobSet.jobs[0]
+    const result = await pollUntilDone(this.creds, queued.request_id)
     return {
-      requestId: jobSet.id,
-      status: this.mapStatus(job?.status ?? 'queued'),
-      url: job?.results?.raw?.url,
+      requestId: result.request_id,
+      status: this.mapStatus(result.status),
+      url: result.images?.[0]?.url,
     }
   }
 
   async generateVideo(opts: VideoOptions): Promise<GenerationResult> {
+    const modelId = opts.model ?? DEFAULT_VIDEO_MODEL
+    const modelCfg = getModelConfig(modelId)
+
+    if (!modelCfg || modelCfg.type !== 'video') {
+      throw new Error(
+        `Unknown video model "${modelId}". Run "mediagen models" to see available models.`
+      )
+    }
+
+    // Upload local file if needed
     let imageUrl = opts.image
     if (!opts.image.startsWith('http')) {
       const buffer = await readFile(opts.image)
-      imageUrl = await uploadImage(this.client, buffer)
+      const ext = extname(opts.image).toLowerCase()
+      const contentType =
+        ext === '.jpg' || ext === '.jpeg'
+          ? 'image/jpeg'
+          : ext === '.webp'
+            ? 'image/webp'
+            : 'image/png'
+      imageUrl = await uploadImage(this.creds, buffer, contentType)
     }
 
-    const jobSet = await generateVideo(this.client, {
-      imageUrl,
+    const body: Record<string, unknown> = {
+      image_url: imageUrl,
       prompt: opts.prompt,
-      model: opts.model ?? DEFAULT_VIDEO_MODEL,
-      motionId: opts.motion,
-      motionStrength: opts.motionStrength,
-      seed: opts.seed,
-      withPolling: !opts.noPoll,
-    })
+    }
 
-    const job = jobSet.jobs[0]
+    if (opts.seed !== undefined) body.seed = opts.seed
+
+    const queued = await submitGeneration(this.creds, modelCfg.endpoint, body)
+
+    if (opts.noPoll) {
+      return {
+        requestId: queued.request_id,
+        status: 'queued',
+      }
+    }
+
+    const result = await pollUntilDone(this.creds, queued.request_id)
     return {
-      requestId: jobSet.id,
-      status: this.mapStatus(job?.status ?? 'queued'),
-      url: job?.results?.raw?.url,
+      requestId: result.request_id,
+      status: this.mapStatus(result.status),
+      url: result.video?.url,
     }
   }
 
   async getStatus(requestId: string): Promise<StatusResult> {
-    const { apiKey, apiSecret } = this.config.higgsfield
-    if (!apiKey || !apiSecret) {
-      throw new Error(
-        'Higgsfield credentials required. Set HF_API_KEY and HF_API_SECRET.'
-      )
+    const result = await getStatus(this.creds, requestId)
+    return {
+      requestId: result.request_id,
+      status: result.status,
+      url: result.images?.[0]?.url ?? result.video?.url,
     }
-
-    // Try V2 status first, fallback to V1
-    const endpoints = [
-      `https://platform.higgsfield.ai/requests/${requestId}/status`,
-      `https://platform.higgsfield.ai/v1/job-sets/${requestId}`,
-    ]
-
-    for (const url of endpoints) {
-      const response = await fetch(url, {
-        headers: {
-          'hf-api-key': apiKey,
-          'hf-secret': apiSecret,
-          Authorization: `Key ${apiKey}:${apiSecret}`,
-        },
-      })
-
-      if (!response.ok) continue
-
-      const data = (await response.json()) as Record<string, unknown>
-
-      // V2 format
-      if (data.request_id) {
-        return {
-          requestId: data.request_id as string,
-          status: (data.status as string) ?? 'unknown',
-          url: ((data.images as Array<{ url: string }>) ?? [])[0]?.url
-            ?? (data.video as { url: string })?.url,
-        }
-      }
-
-      // V1 format
-      if (data.jobs) {
-        const job = (data.jobs as Array<{ status: string; results?: { raw?: { url: string } } }>)[0]
-        return {
-          requestId: data.id as string,
-          status: job?.status ?? 'unknown',
-          url: job?.results?.raw?.url,
-        }
-      }
-    }
-
-    throw new Error(`Failed to get status for request: ${requestId}`)
   }
 
   async listModels(): Promise<Model[]> {
@@ -177,57 +141,37 @@ export class HiggsFieldProvider implements Provider {
   }
 
   async listStyles(): Promise<Style[]> {
-    const styles = await fetchStyles(this.client)
-    return styles.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      previewUrl: s.preview_url,
-    }))
+    // Styles are Soul V1 specific — not available via REST API
+    return []
   }
 
   async listMotions(): Promise<Motion[]> {
-    const motions = await fetchMotions(this.client)
-    return motions.map((m) => ({
-      id: m.id,
-      name: m.name,
-      description: m.description,
-      previewUrl: m.preview_url,
-    }))
+    // Motions are DoP V1 specific — not available via REST API
+    return []
   }
 
   async upload(filePath: string): Promise<string> {
     const buffer = await readFile(filePath)
-    return uploadImage(this.client, buffer)
+    const ext = extname(filePath).toLowerCase()
+    const contentType =
+      ext === '.jpg' || ext === '.jpeg'
+        ? 'image/jpeg'
+        : ext === '.webp'
+          ? 'image/webp'
+          : 'image/png'
+    return uploadImage(this.creds, buffer, contentType)
   }
 
   async listCharacters(): Promise<Character[]> {
-    const result = await listSoulIds(this.client)
-    return result.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      status: item.status,
-    }))
+    // Characters (SoulId) are V1 specific — not available via REST API
+    return []
   }
 
-  async createCharacter(name: string, imagePaths: string[]): Promise<Character> {
-    const urls: string[] = []
-    for (const path of imagePaths) {
-      if (path.startsWith('http')) {
-        urls.push(path)
-      } else {
-        const buffer = await readFile(path)
-        const url = await uploadImage(this.client, buffer)
-        urls.push(url)
-      }
-    }
-
-    const soulId = await createSoulId(this.client, name, urls)
-    return {
-      id: soulId.id,
-      name: soulId.name,
-      status: soulId.status,
-    }
+  async createCharacter(_name: string, _imagePaths: string[]): Promise<Character> {
+    throw new Error(
+      'Character creation requires the V1 SDK which is deprecated.\n' +
+        'Use the Higgsfield web UI at cloud.higgsfield.ai instead.'
+    )
   }
 
   private mapStatus(
@@ -239,7 +183,6 @@ export class HiggsFieldProvider implements Provider {
       completed: 'completed',
       failed: 'failed',
       nsfw: 'nsfw',
-      canceled: 'failed',
     }
     return map[status] ?? 'queued'
   }

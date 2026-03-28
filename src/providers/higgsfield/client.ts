@@ -1,22 +1,13 @@
-import {
-  HiggsfieldClient,
-  InputImage,
-  type InputImageData,
-  type JobSet,
-  type SoulStyle,
-  type Motion as HFMotion,
-  type SoulId,
-  type SoulIdListResponse,
-} from '@higgsfield/client'
-import {
-  config as configV2,
-  higgsfield as hfV2,
-} from '@higgsfield/client/v2'
 import type { AppConfig } from '../../config.js'
 
-// --- V1 Client (Soul, DoP, styles, motions, characters) ---
+const BASE_URL = 'https://platform.higgsfield.ai'
 
-export function createClient(config: AppConfig): HiggsfieldClient {
+export interface HFCredentials {
+  apiKey: string
+  apiSecret: string
+}
+
+export function getCredentials(config: AppConfig): HFCredentials {
   const { apiKey, apiSecret } = config.higgsfield
 
   if (!apiKey || !apiSecret) {
@@ -28,187 +19,161 @@ export function createClient(config: AppConfig): HiggsfieldClient {
     )
   }
 
-  return new HiggsfieldClient({ apiKey, apiSecret })
+  return { apiKey, apiSecret }
 }
 
-// --- V2 Client (Nano Banana, Flux, Seedream — slug format) ---
-
-let v2Configured = false
-
-export function ensureV2(config: AppConfig): void {
-  if (v2Configured) return
-  const { apiKey, apiSecret } = config.higgsfield
-
-  if (!apiKey || !apiSecret) {
-    throw new Error(
-      'Higgsfield credentials not found.\n' +
-        'Run: mediagen config set api-key YOUR_KEY\n' +
-        'Run: mediagen config set api-secret YOUR_SECRET'
-    )
-  }
-
-  configV2({ credentials: `${apiKey}:${apiSecret}` })
-  v2Configured = true
-}
-
-export interface V2ImageParams {
-  endpoint: string
-  prompt: string
-  resolution?: string
-  aspectRatio?: string
-  seed?: number
-  withPolling: boolean
-}
-
-export interface V2Result {
-  requestId: string
-  status: string
-  url?: string
-}
-
-export async function generateImageV2(
-  config: AppConfig,
-  params: V2ImageParams
-): Promise<V2Result> {
-  ensureV2(config)
-
-  const input: Record<string, unknown> = {
-    prompt: params.prompt,
-  }
-
-  if (params.resolution) input.resolution = params.resolution
-  if (params.aspectRatio) input.aspect_ratio = params.aspectRatio
-  if (params.seed !== undefined) input.seed = params.seed
-
-  const result = await hfV2.subscribe(params.endpoint, {
-    input,
-    withPolling: params.withPolling,
-  })
-
-  const imageUrl = result.images?.[0]?.url
-
+function authHeaders(creds: HFCredentials): Record<string, string> {
   return {
-    requestId: result.request_id,
-    status: result.status,
-    url: imageUrl,
+    Authorization: `Key ${creds.apiKey}:${creds.apiSecret}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
   }
 }
 
-// --- V1 Image Generation (Soul) ---
+// --- API Response Types ---
 
-export interface GenerateImageParams {
-  prompt: string
-  size: string
-  quality: string
-  styleId?: string
-  styleStrength?: number
-  characterId?: string
-  characterStrength?: number
-  seed?: number
-  withPolling: boolean
+export interface QueuedResponse {
+  status: 'queued'
+  request_id: string
+  status_url: string
+  cancel_url: string
 }
 
-export async function generateImage(
-  client: HiggsfieldClient,
-  params: GenerateImageParams
-): Promise<JobSet> {
-  const input: Record<string, unknown> = {
-    prompt: params.prompt,
-    width_and_height: params.size,
-    quality: params.quality,
-    batch_size: 1,
-  }
+export interface CompletedResponse {
+  status: 'completed'
+  request_id: string
+  status_url: string
+  cancel_url: string
+  images?: Array<{ url: string }>
+  video?: { url: string }
+}
 
-  if (params.styleId) {
-    input.style_id = params.styleId
-    if (params.styleStrength !== undefined) {
-      input.style_strength = params.styleStrength
-    }
-  }
+export interface StatusResponse {
+  status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'nsfw'
+  request_id: string
+  status_url?: string
+  cancel_url?: string
+  images?: Array<{ url: string }>
+  video?: { url: string }
+  error?: string
+}
 
-  if (params.characterId) {
-    input.custom_reference_id = params.characterId
-    if (params.characterStrength !== undefined) {
-      input.custom_reference_strength = params.characterStrength
-    }
-  }
+// --- Submit Generation ---
 
-  if (params.seed !== undefined) {
-    input.seed = params.seed
-  }
-
-  return client.generate('/v1/text2image/soul', input, {
-    withPolling: params.withPolling,
+export async function submitGeneration(
+  creds: HFCredentials,
+  modelEndpoint: string,
+  body: Record<string, unknown>
+): Promise<QueuedResponse> {
+  const response = await fetch(`${BASE_URL}/${modelEndpoint}`, {
+    method: 'POST',
+    headers: authHeaders(creds),
+    body: JSON.stringify(body),
   })
+
+  if (!response.ok) {
+    const text = await response.text()
+    let detail = text
+    try {
+      const json = JSON.parse(text)
+      detail = json.detail || json.error || json.message || text
+    } catch {}
+    throw new Error(`API error ${response.status}: ${detail}`)
+  }
+
+  return (await response.json()) as QueuedResponse
 }
 
-// --- V1 Video Generation (DoP) ---
+// --- Poll for Status ---
 
-export interface GenerateVideoParams {
-  imageUrl: string
-  prompt: string
-  model: string
-  motionId?: string
-  motionStrength?: number
-  seed?: number
-  withPolling: boolean
+export async function pollUntilDone(
+  creds: HFCredentials,
+  requestId: string,
+  intervalMs = 2000,
+  maxMs = 300000
+): Promise<StatusResponse> {
+  const start = Date.now()
+  const statusUrl = `${BASE_URL}/requests/${requestId}/status`
+
+  while (Date.now() - start < maxMs) {
+    const response = await fetch(statusUrl, {
+      headers: authHeaders(creds),
+    })
+
+    if (!response.ok) {
+      if (response.status >= 500) {
+        await sleep(intervalMs)
+        continue
+      }
+      throw new Error(`Status check failed: ${response.status}`)
+    }
+
+    const data = (await response.json()) as StatusResponse
+
+    if (data.status === 'completed' || data.status === 'failed' || data.status === 'nsfw') {
+      return data
+    }
+
+    await sleep(intervalMs)
+  }
+
+  throw new Error(`Generation timed out after ${maxMs / 1000}s. Check status: mediagen status ${requestId}`)
 }
 
-export async function generateVideo(
-  client: HiggsfieldClient,
-  params: GenerateVideoParams
-): Promise<JobSet> {
-  const input: Record<string, unknown> = {
-    model: params.model,
-    prompt: params.prompt,
-    input_images: [InputImage.fromUrl(params.imageUrl)],
-  }
+// --- Get Status (single check) ---
 
-  if (params.motionId) {
-    input.motions = [
-      { id: params.motionId, strength: params.motionStrength ?? 0.5 },
-    ]
-  }
-
-  if (params.seed !== undefined) {
-    input.seed = params.seed
-  }
-
-  return client.generate('/v1/image2video/dop', input, {
-    withPolling: params.withPolling,
+export async function getStatus(
+  creds: HFCredentials,
+  requestId: string
+): Promise<StatusResponse> {
+  const response = await fetch(`${BASE_URL}/requests/${requestId}/status`, {
+    headers: authHeaders(creds),
   })
+
+  if (!response.ok) {
+    throw new Error(`Status check failed: ${response.status} ${response.statusText}`)
+  }
+
+  return (await response.json()) as StatusResponse
 }
 
-// --- V1 Utilities ---
-
-export async function fetchStyles(client: HiggsfieldClient): Promise<SoulStyle[]> {
-  return client.getSoulStyles()
-}
-
-export async function fetchMotions(client: HiggsfieldClient): Promise<HFMotion[]> {
-  return client.getMotions()
-}
+// --- Upload Image ---
 
 export async function uploadImage(
-  client: HiggsfieldClient,
-  imageBuffer: Buffer
+  creds: HFCredentials,
+  imageBuffer: Buffer,
+  contentType = 'image/png'
 ): Promise<string> {
-  return client.uploadImage(imageBuffer)
-}
-
-export async function createSoulId(
-  client: HiggsfieldClient,
-  name: string,
-  imageUrls: string[]
-): Promise<SoulId> {
-  return client.createSoulId({
-    name,
-    input_images: imageUrls.map((url) => InputImage.fromUrl(url) as InputImageData),
+  // Step 1: Get upload URL
+  const genResponse = await fetch(`${BASE_URL}/files/generate-upload-url`, {
+    method: 'POST',
+    headers: authHeaders(creds),
+    body: JSON.stringify({ content_type: contentType }),
   })
+
+  if (!genResponse.ok) {
+    throw new Error(`Failed to get upload URL: ${genResponse.status}`)
+  }
+
+  const { upload_url, public_url } = (await genResponse.json()) as {
+    upload_url: string
+    public_url: string
+  }
+
+  // Step 2: Upload to CDN
+  const putResponse = await fetch(upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: new Uint8Array(imageBuffer),
+  })
+
+  if (!putResponse.ok) {
+    throw new Error(`Upload failed: ${putResponse.status}`)
+  }
+
+  return public_url
 }
 
-export async function listSoulIds(
-  client: HiggsfieldClient
-): Promise<SoulIdListResponse> {
-  return client.listSoulIds()
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

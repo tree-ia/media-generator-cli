@@ -12,9 +12,9 @@ export function createImageCommand(): Command {
     .command('generate')
     .description('Generate an image from a text prompt')
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the image')
-    .option('-m, --model <model>', 'Model to use (default: nano-banana-2)')
-    .option('-s, --size <size>', 'Size: aspect ratio for V2 (1:1, 16:9) or WxH for Soul (2048x1152)')
-    .option('-q, --quality <quality>', 'Quality/resolution: 0.5K, 1K, 2K (default), 4K for V2; 720p, 1080p for Soul')
+    .option('-m, --model <model>', 'Model to use (default: soul)')
+    .option('-s, --size <ratio>', 'Aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:2, 21:9')
+    .option('-q, --quality <res>', 'Resolution: 720p, 1080p, 2K, 4K')
     .option('-o, --output <path>', 'Save image to local file')
     .option('--style <id>', 'Style ID (use "mediagen styles" to list)')
     .option('--style-strength <n>', 'Style strength 0.0-1.0', parseFloat)
@@ -29,27 +29,19 @@ export function createImageCommand(): Command {
       `
 Examples:
   $ mediagen image generate --prompt "modern office building at sunset"
-  $ mediagen image generate --prompt "hero banner" --size 16:9 --quality 4K --output ./public/hero.png
-  $ mediagen image generate --prompt "logo design" --model nano-banana-pro --output ./logo.png
+  $ mediagen image generate --prompt "hero banner" --size 16:9 --quality 720p --output ./public/hero.png
   $ mediagen image generate --prompt "landscape" --model seedream --size 16:9 --output ./bg.png
-  $ mediagen image generate --prompt "portrait" --model soul --size 1152x2048 --quality 1080p
+  $ mediagen image generate --prompt "creative art" --model reve --output ./art.png
   $ mediagen image generate --prompt "test" --no-poll
 
 Models (run "mediagen models" for full list):
-  nano-banana-2  (default) Fast, Gemini-based, 0.5K-4K
-  nano-banana-pro          High quality, detailed
-  flux-kontext             Flux Kontext Max
-  seedream                 ByteDance Seedream v4
-  soul                     Higgsfield Soul (legacy V1, supports styles/characters)
+  soul     (default) Higgsfield flagship text-to-image
+  reve               Versatile text-to-image
+  seedream            ByteDance Seedream v4, creative/artistic
 
-V2 models (nano-banana, flux, seedream):
+Parameters:
   --size: aspect ratio (1:1, 16:9, 9:16, 4:3, 3:2, 21:9)
-  --quality: resolution (0.5K, 1K, 2K, 4K)
-
-Soul model (V1):
-  --size: pixel dimensions (2048x1152, 1536x1536, etc.)
-  --quality: 720p or 1080p
-  --style, --character: only available with Soul`
+  --quality: resolution (720p, 1080p, 2K, 4K)`
     )
     .action(async (opts) => {
       const config = loadConfig()

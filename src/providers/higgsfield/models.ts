@@ -5,84 +5,68 @@ export interface ModelConfig {
   name: string
   type: 'image' | 'video' | 'speech'
   description: string
-  api: 'v1' | 'v2'
   endpoint: string
+  inputType: 'text-to-image' | 'image-to-video' | 'edit'
 }
 
 export const HIGGSFIELD_MODELS: ModelConfig[] = [
-  // V2 models (slug format — recommended)
+  // Text-to-Image
   {
-    id: 'nano-banana-2',
-    name: 'Nano Banana 2',
+    id: 'soul',
+    name: 'Soul Standard',
     type: 'image',
-    api: 'v2',
-    endpoint: 'google/nano-banana-2/text-to-image',
-    description: 'Fast text-to-image (Gemini-based). Supports 0.5K-4K, multiple aspect ratios.',
+    endpoint: 'higgsfield-ai/soul/standard',
+    inputType: 'text-to-image',
+    description: 'Higgsfield flagship text-to-image. Good quality, fast.',
   },
   {
-    id: 'nano-banana-pro',
-    name: 'Nano Banana Pro',
+    id: 'reve',
+    name: 'Reve',
     type: 'image',
-    api: 'v2',
-    endpoint: 'google/nano-banana-pro/text-to-image',
-    description: 'High-quality text-to-image (Gemini Pro). Best for detailed, realistic images.',
-  },
-  {
-    id: 'nano-banana',
-    name: 'Nano Banana',
-    type: 'image',
-    api: 'v2',
-    endpoint: 'google/nano-banana/text-to-image',
-    description: 'Original Nano Banana (Gemini Flash). Good balance of speed and quality.',
-  },
-  {
-    id: 'flux-kontext',
-    name: 'Flux Kontext Pro',
-    type: 'image',
-    api: 'v2',
-    endpoint: 'flux-pro/kontext/max/text-to-image',
-    description: 'Flux Kontext Max text-to-image. High coherence and detail.',
+    endpoint: 'reve/text-to-image',
+    inputType: 'text-to-image',
+    description: 'Versatile text-to-image generation.',
   },
   {
     id: 'seedream',
     name: 'Seedream v4',
     type: 'image',
-    api: 'v2',
     endpoint: 'bytedance/seedream/v4/text-to-image',
+    inputType: 'text-to-image',
     description: 'ByteDance Seedream v4. Excellent for creative and artistic images.',
   },
-  // V1 models (legacy endpoints)
+  // Image-to-Video
   {
-    id: 'soul',
-    name: 'Soul',
-    type: 'image',
-    api: 'v1',
-    endpoint: '/v1/text2image/soul',
-    description: 'Higgsfield flagship. Styles, characters, custom sizes.',
-  },
-  {
-    id: 'dop-lite',
-    name: 'DoP Lite',
+    id: 'dop-preview',
+    name: 'DoP Preview',
     type: 'video',
-    api: 'v1',
-    endpoint: '/v1/image2video/dop',
-    description: 'Image-to-video, basic quality. Fastest generation.',
-  },
-  {
-    id: 'dop-turbo',
-    name: 'DoP Turbo',
-    type: 'video',
-    api: 'v1',
-    endpoint: '/v1/image2video/dop',
-    description: 'Image-to-video, 2x speed, priority queue.',
+    endpoint: 'higgsfield-ai/dop/preview',
+    inputType: 'image-to-video',
+    description: 'Image-to-video, preview quality. Fast generation.',
   },
   {
     id: 'dop-standard',
     name: 'DoP Standard',
     type: 'video',
-    api: 'v1',
-    endpoint: '/v1/image2video/dop',
-    description: 'Image-to-video, highest quality, priority queue.',
+    endpoint: 'higgsfield-ai/dop/standard',
+    inputType: 'image-to-video',
+    description: 'Image-to-video, highest quality.',
+  },
+  {
+    id: 'seedance',
+    name: 'Seedance v1 Pro',
+    type: 'video',
+    endpoint: 'bytedance/seedance/v1/pro/image-to-video',
+    inputType: 'image-to-video',
+    description: 'ByteDance Seedance. Professional-grade video generation.',
+  },
+  {
+    id: 'kling',
+    name: 'Kling 2.1 Pro',
+    type: 'video',
+    endpoint: 'kling-video/v2.1/pro/image-to-video',
+    inputType: 'image-to-video',
+    description: 'Kling Video 2.1 Pro. Advanced cinematic animations.',
   },
 ]
 
@@ -94,16 +78,5 @@ export function toPublicModel(m: ModelConfig): Model {
   return { id: m.id, name: m.name, type: m.type, description: m.description }
 }
 
-export const NANO_BANANA_RESOLUTIONS = ['0.5K', '1K', '2K', '4K'] as const
-export const NANO_BANANA_ASPECTS = [
-  'auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9',
-] as const
-
-export const SOUL_SIZES = [
-  '2048x1152', '2048x1536', '2016x1344', '1696x960', '1632x1088',
-  '1536x1536', '1536x1152', '1152x1536', '1152x2048', '1536x2048',
-  '1344x2016', '960x1696', '1088x1632',
-] as const
-
-export const DEFAULT_IMAGE_MODEL = 'nano-banana-2'
+export const DEFAULT_IMAGE_MODEL = 'soul'
 export const DEFAULT_VIDEO_MODEL = 'dop-standard'
