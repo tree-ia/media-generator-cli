@@ -14,9 +14,8 @@ export function getCredentials(config: AppConfig): KlingCredentials {
   if (!accessKey || !secretKey) {
     throw new Error(
       'Kling credentials not found.\n' +
-        'Run: mediagen config set provider kling\n' +
-        'Run: mediagen config set api-key YOUR_ACCESS_KEY\n' +
-        'Run: mediagen config set api-secret YOUR_SECRET_KEY\n' +
+        'Run: mediagen config set api-key YOUR_ACCESS_KEY --provider kling\n' +
+        'Run: mediagen config set api-secret YOUR_SECRET_KEY --provider kling\n' +
         'Get your keys at: https://app.klingai.com/global/dev'
     )
   }

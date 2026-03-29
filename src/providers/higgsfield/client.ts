@@ -13,8 +13,8 @@ export function getCredentials(config: AppConfig): HFCredentials {
   if (!apiKey || !apiSecret) {
     throw new Error(
       'Higgsfield credentials not found.\n' +
-        'Run: mediagen config set api-key YOUR_KEY\n' +
-        'Run: mediagen config set api-secret YOUR_SECRET\n' +
+        'Run: mediagen config set api-key YOUR_KEY --provider higgsfield\n' +
+        'Run: mediagen config set api-secret YOUR_SECRET --provider higgsfield\n' +
         'Get your keys at: https://cloud.higgsfield.ai/api-keys'
     )
   }

@@ -9,8 +9,7 @@ export function getApiKey(config: AppConfig): string {
   if (!apiKey) {
     throw new Error(
       'Runway API key not found.\n' +
-        'Run: mediagen config set provider runway\n' +
-        'Run: mediagen config set api-key YOUR_KEY\n' +
+        'Run: mediagen config set api-key YOUR_KEY --provider runway\n' +
         'Get your key at: https://dev.runwayml.com/'
     )
   }

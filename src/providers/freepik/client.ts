@@ -7,8 +7,7 @@ export function getApiKey(config: AppConfig): string {
   if (!key) {
     throw new Error(
       'Freepik API key not found.\n' +
-        'Run: mediagen config set provider freepik\n' +
-        'Run: mediagen config set api-key YOUR_KEY\n' +
+        'Run: mediagen config set api-key YOUR_KEY --provider freepik\n' +
         'Get your key at: https://www.freepik.com/api'
     )
   }

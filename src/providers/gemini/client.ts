@@ -7,8 +7,7 @@ export function getApiKey(config: AppConfig): string {
   if (!key) {
     throw new Error(
       'Gemini API key not found.\n' +
-        'Run: mediagen config set provider gemini\n' +
-        'Run: mediagen config set api-key YOUR_KEY\n' +
+        'Run: mediagen config set api-key YOUR_KEY --provider gemini\n' +
         'Get your key at: https://aistudio.google.com/apikey'
     )
   }

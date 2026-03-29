@@ -76,13 +76,117 @@ Kling: kling-img-v2, kling-img-v2.1 (image), kling-v2-master, kling-v2.1-master,
 - `--json`: machine-readable output
 - `--no-poll`: return request ID without waiting (no effect on Gemini)
 
+### Model selection
+
+| Use case | Provider / Model | Why |
+|----------|-----------------|-----|
+| Free / low-cost | Gemini / gemini-flash | Free tier, fast |
+| Highest image quality | Gemini / gemini-pro-preview | 2K/4K support |
+| Photorealistic | Freepik / mystic (realism) or flux-2-pro | Hyper-realistic textures |
+| Artistic / illustration | Freepik / seedream-4.5 | Creative, cinematic |
+| Fast prototyping | Freepik / flux-2-klein or hyperflux | Sub-second generation |
+| Text in images | Gemini or Freepik / mystic | Better text rendering |
+| Brand colors (hex) | Freepik / flux-2-pro | Supports hex color codes |
+| Video (best value) | Runway / gen4-turbo | $0.05/sec |
+| Video (highest quality) | Runway / gen4.5 | Text-to-video + image-to-video |
+| Video (text-to-video) | Runway / gen4.5 or Kling | No source image needed |
+| Video (fast preview) | Higgsfield / dop-preview | Quick drafts |
+
+### Aspect ratios
+
+| Ratio | Use case |
+|-------|----------|
+| 16:9 | Hero banners, desktop headers, YouTube thumbnails, OG images |
+| 9:16 | Instagram/TikTok stories, mobile heroes, vertical video |
+| 1:1 | Instagram feed, profile pictures, product thumbnails, app icons |
+| 4:3 | Blog images, presentation slides |
+| 3:2 | Standard photography, email headers |
+| 21:9 | Cinematic banners, ultrawide backgrounds, panoramic scenes |
+
+### Prompt best practices
+
+**Structure (priority order):** `[Style/Medium] + [Subject] + [Action] + [Setting] + [Lighting] + [Composition]`
+- Word order matters — models pay more attention to what comes first
+- 30-80 words is the sweet spot for most use cases
+- Start short, add detail if the result isn't specific enough
+
+**Photorealistic prompts:**
+- Use camera terminology: `"shot on 85mm lens, f/1.8, natural light"`
+- Reference lighting: `"golden hour rim lighting"`, `"soft studio light"`, `"volumetric light"`
+
+**Artistic prompts:**
+- Name the medium: `"watercolor illustration"`, `"oil painting"`, `"vector flat design"`
+- Reference art styles: `"art nouveau"`, `"bauhaus"`, `"impressionist"`
+
+**Text in images:**
+- Always enclose text in quotes: `"a neon sign reading 'OPEN'"`
+- Specify font style: `"bold sans-serif"`, `"elegant serif"`, `"neon cursive"`
+- Best models: Gemini, mystic. Worst: flux-2-klein, hyperflux (too fast)
+
+**Avoid:**
+- Generic quality tokens like `"4K, masterpiece, highly detailed"` — describe actual details instead
+- Negative phrasing on Flux/Runway models (no negative prompt support) — describe what you WANT
+- Over-detailed prompts (100+ words) — models ignore parts arbitrarily
+- The word `"background"` on Mystic (causes blurriness)
+
+### Web asset guidelines
+
+**Hero sections:**
+- Use `--size 16:9`, minimum 1920x1080
+- Prompt for negative space: `"open sky on the right for text overlay"`
+- Dark/muted backgrounds for light text; bright scenes for dark text
+- Consider separate desktop (16:9) and mobile (9:16) versions
+
+**Product photos:**
+- Use `--size 1:1` for e-commerce grids
+- Prompt: `"product photography, studio lighting, white background, sharp focus"`
+
+**Background textures:**
+- Use `--size 1:1` for tiling patterns
+- Prompt for subtle patterns: `"seamless texture, muted colors, subtle gradient"`
+
+**Performance workflow:**
+1. Prototype with fast/free models (gemini-flash, flux-2-klein)
+2. Pick the best composition and prompt
+3. Regenerate with high-quality model (mystic, gemini-pro-preview)
+4. Use `--quality 2K` or `--quality 4K` for final asset
+
+### Video prompt guidelines
+
+**Prompt structure:** `[Camera movement] + [Speed] + [Subject motion] + [Atmosphere]`
+- Focus on MOTION, not appearance — the model sees the source image
+- Use active verbs: `"glides"`, `"drifts"`, `"swirls"`, `"rushes"`
+- Always specify camera movement explicitly
+
+**Camera movements:**
+- `"slow pan right"` — horizontal rotation
+- `"tilt up"` — vertical rotation revealing height
+- `"push in"` / `"dolly in"` — approach the subject
+- `"pull back"` — reveal wider scene
+- `"orbit"` — circle around subject
+- `"crane up"` — sweep upward and away
+- `"tracking shot"` — follow a moving subject
+- `"static shot"` — camera fixed, only subject moves
+
+**Duration:**
+- 5 seconds: single camera movement, product showcase, ambient motion
+- 10 seconds: complex motion, multiple movements, narrative sequences
+
+**Source image tips (image-to-video):**
+- Use high-quality, artifact-free images — flaws get amplified
+- Images with implied motion (mid-action poses, motion blur) animate better
+- Avoid source images with text/watermarks — they distort during animation
+
+**Web motion design:**
+- Hero background videos: `"static shot"` or `"extremely slow push in"`, atmospheric motion, 5s
+- Product showcases: `"slow orbit"` or `"push in"`, 5s
+- Keep motion subtle — visitors should not be distracted from content
+
 ### Rules
 
 - Save generated assets in the project's `public/` directory unless told otherwise
 - Use descriptive filenames: `hero-construction-site.png`, not `output.png`
-- For web banners/heroes, use `--size 16:9`; for social/square, use `--size 1:1`
 - Always use `--output` to save locally — don't leave assets as URLs only
 - Use `--json` flag when you need to parse the output programmatically
-- Prefer Gemini provider for free/low-cost usage, Freepik for variety of image models
-- For video generation, use Runway (gen4-turbo for value, gen4.5 for quality) or Kling
-- Runway gen4.5 and Kling support text-to-video (no image required)
+- Use `--seed` for consistency across multiple related generations
+- If a generation returns `status: 'nsfw'`, rephrase with more formal/academic language and retry
