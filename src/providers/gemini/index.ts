@@ -85,7 +85,7 @@ export class GeminiProvider implements Provider {
   async generateVideo(_opts: VideoOptions): Promise<GenerationResult> {
     throw new Error(
       'Video generation via Gemini is not supported.\n' +
-        'Use --provider higgsfield for video generation.'
+        'Use --provider runway, kling, or higgsfield for video generation.'
     )
   }
 

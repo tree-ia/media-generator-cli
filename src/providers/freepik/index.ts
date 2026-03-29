@@ -77,8 +77,8 @@ export class FreepikProvider implements Provider {
 
   async generateVideo(_opts: VideoOptions): Promise<GenerationResult> {
     throw new Error(
-      'Video generation via Freepik is not yet implemented.\n' +
-        'Use --provider higgsfield for video generation.'
+      'Video generation via Freepik is not supported.\n' +
+        'Use --provider runway, kling, or higgsfield for video generation.'
     )
   }
 

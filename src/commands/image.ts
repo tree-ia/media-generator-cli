@@ -12,7 +12,7 @@ export function createImageCommand(): Command {
     .command('generate')
     .description('Generate an image from a text prompt')
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the image')
-    .option('-m, --model <model>', 'Model to use (default: soul)')
+    .option('-m, --model <model>', 'Model to use (default varies by provider)')
     .option('-s, --size <ratio>', 'Aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:2, 21:9')
     .option('-q, --quality <res>', 'Resolution: 720p, 1080p, 2K, 4K')
     .option('-o, --output <path>', 'Save image to local file')
@@ -39,11 +39,11 @@ Models vary by provider. Run "mediagen models" for the full list.
 Parameters:
   --size: aspect ratio (1:1, 16:9, 9:16, 4:3, 3:2, 21:9)
   --quality: resolution (1K, 2K, 4K)
-  --provider: override default provider (gemini, freepik, higgsfield)`
+  --provider: override default provider (gemini, freepik, higgsfield, runway, kling)`
     )
     .action(async (opts) => {
       const config = loadConfig()
-      const providerName = opts.provider ?? config.provider
+      const providerName = opts.provider ?? config.imageProvider
       const provider = getProvider(providerName, config)
 
       const spinner = ora('Generating image...').start()

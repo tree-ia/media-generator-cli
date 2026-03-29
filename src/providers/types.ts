@@ -13,9 +13,12 @@ export interface ImageOptions {
 }
 
 export interface VideoOptions {
-  image: string
+  image?: string
   prompt: string
   model?: string
+  size?: string
+  duration?: number
+  negativePrompt?: string
   motion?: string
   motionStrength?: number
   output?: string

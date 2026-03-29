@@ -3,12 +3,16 @@ import type { AppConfig } from '../config.js'
 import { HiggsFieldProvider } from './higgsfield/index.js'
 import { FreepikProvider } from './freepik/index.js'
 import { GeminiProvider } from './gemini/index.js'
+import { RunwayProvider } from './runway/index.js'
+import { KlingProvider } from './kling/index.js'
 
 const providers = new Map<string, (config: AppConfig) => Provider>()
 
 providers.set('higgsfield', (config) => new HiggsFieldProvider(config))
 providers.set('freepik', (config) => new FreepikProvider(config))
 providers.set('gemini', (config) => new GeminiProvider(config))
+providers.set('runway', (config) => new RunwayProvider(config))
+providers.set('kling', (config) => new KlingProvider(config))
 
 export function getProvider(name: string, config: AppConfig): Provider {
   const factory = providers.get(name)

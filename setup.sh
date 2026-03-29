@@ -101,93 +101,102 @@ mkdir -p "$SKILL_DIR"
 cp "$SCRIPT_DIR/skills/SKILL.md" "$SKILL_DIR/SKILL.md"
 success "Skill installed at $SKILL_DIR/SKILL.md"
 
-# --- 5. Choose provider ---
-printf '\n%s\n\n' "$(bold 'Choose your provider:')"
+# --- Helper: configure provider credentials ---
+setup_provider() {
+  local name="$1"
+  local config_key="$2"
+  local url="$3"
+  local needs_secret="$4"
 
-PROVIDERS=(
-  "Gemini      Google Gemini direct API, free tier, 2.5 Flash/3.1/Pro"
-  "Freepik     10+ image models, €5 free credit, pay-as-you-go"
-  "Higgsfield  Soul, DoP video, Kling, Seedance (Creator plan)"
+  HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.${config_key}?.apiKey||c.${config_key}?.accessKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
+  if [ "$HAS_KEY" = "yes" ]; then
+    success "$name credentials already configured"
+    return
+  fi
+
+  printf '\n'
+  info "Enter your $name credentials"
+  printf '  Get them at: %s\n\n' "$(dim "$url")"
+  read -rp "  API Key: " API_KEY
+
+  if [ -z "$API_KEY" ]; then
+    warn "Skipped. Run later: mediagen config set api-key YOUR_KEY --provider $name"
+    return
+  fi
+
+  mediagen config set api-key "$API_KEY" --provider "$name" 2>/dev/null
+
+  if [ "$needs_secret" = "yes" ]; then
+    read -rp "  API Secret: " API_SECRET
+    if [ -n "$API_SECRET" ]; then
+      mediagen config set api-secret "$API_SECRET" --provider "$name" 2>/dev/null
+    fi
+  fi
+
+  success "$name credentials saved"
+}
+
+# --- 5. Choose image provider ---
+printf '\n%s\n\n' "$(bold 'Choose your default image provider:')"
+
+IMAGE_PROVIDERS=(
+  "Gemini      Free tier, Google Gemini 2.5 Flash/3.1/Pro"
+  "Freepik     10+ models (Mystic, Flux, Seedream), €5 free credit"
+  "Runway      Gen-4 Image/Turbo, high quality"
+  "Kling       Kling Image v2/v2.1"
+  "Higgsfield  Soul, Reve, Seedream v4"
   "Skip        Configure later"
 )
 
-select_option "${PROVIDERS[@]}"
-CHOICE=$?
+select_option "${IMAGE_PROVIDERS[@]}"
+IMG_CHOICE=$?
 
-case "$CHOICE" in
-  0) # Gemini
-    mediagen config set provider gemini 2>/dev/null
+IMG_PROVIDERS_MAP=(gemini freepik runway kling higgsfield)
 
-    HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.gemini?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
-    if [ "$HAS_KEY" = "yes" ]; then
-      success "Gemini credentials already configured"
-    else
-      printf '\n'
-      info "Enter your Google Gemini API key"
-      printf '  Get one at: %s\n\n' "$(dim 'https://aistudio.google.com/apikey')"
-      read -rp "  API Key: " GEMINI_KEY
+if [ "$IMG_CHOICE" -lt 5 ]; then
+  SELECTED_IMG="${IMG_PROVIDERS_MAP[$IMG_CHOICE]}"
+  mediagen config set image-provider "$SELECTED_IMG" 2>/dev/null
+  success "Image provider set to: $SELECTED_IMG"
 
-      if [ -n "$GEMINI_KEY" ]; then
-        mediagen config set api-key "$GEMINI_KEY" 2>/dev/null
-        success "Gemini API key saved"
-      else
-        warn "Skipped. Run later: mediagen config set api-key YOUR_KEY"
-      fi
-    fi
-    ;;
+  case "$IMG_CHOICE" in
+    0) setup_provider "gemini" "gemini" "https://aistudio.google.com/apikey" "no" ;;
+    1) setup_provider "freepik" "freepik" "https://www.freepik.com/api" "no" ;;
+    2) setup_provider "runway" "runway" "https://dev.runwayml.com/" "no" ;;
+    3) setup_provider "kling" "kling" "https://app.klingai.com/global/dev" "yes" ;;
+    4) setup_provider "higgsfield" "higgsfield" "https://cloud.higgsfield.ai/api-keys" "yes" ;;
+  esac
+else
+  warn "Skipped. Run later: mediagen config set image-provider <name>"
+fi
 
-  1) # Freepik
-    mediagen config set provider freepik 2>/dev/null
+# --- 6. Choose video provider ---
+printf '\n%s\n\n' "$(bold 'Choose your default video provider:')"
 
-    HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.freepik?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
-    if [ "$HAS_KEY" = "yes" ]; then
-      success "Freepik credentials already configured"
-    else
-      printf '\n'
-      info "Enter your Freepik API key"
-      printf '  Get one at: %s\n\n' "$(dim 'https://www.freepik.com/api → Developer Dashboard')"
-      read -rp "  API Key: " FP_KEY
+VIDEO_PROVIDERS=(
+  "Runway      Gen-4 Turbo (\$0.05/s), Gen-4.5 (text-to-video)"
+  "Kling       Kling v2/v2.1/v2.5 Turbo, text-to-video"
+  "Higgsfield  DoP, Seedance, Kling 2.1 Pro"
+  "Skip        Configure later"
+)
 
-      if [ -n "$FP_KEY" ]; then
-        mediagen config set api-key "$FP_KEY" 2>/dev/null
-        success "Freepik API key saved"
-      else
-        warn "Skipped. Run later: mediagen config set api-key YOUR_KEY"
-      fi
-    fi
-    ;;
+select_option "${VIDEO_PROVIDERS[@]}"
+VID_CHOICE=$?
 
-  2) # Higgsfield
-    mediagen config set provider higgsfield 2>/dev/null
+VID_PROVIDERS_MAP=(runway kling higgsfield)
 
-    HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.higgsfield?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
-    if [ "$HAS_KEY" = "yes" ]; then
-      success "Higgsfield credentials already configured"
-    else
-      printf '\n'
-      info "Enter your Higgsfield credentials (Creator plan required)"
-      printf '  Get them at: %s\n\n' "$(dim 'https://cloud.higgsfield.ai/api-keys')"
-      read -rp "  API Key: " HF_KEY
-      read -rp "  API Secret: " HF_SECRET
+if [ "$VID_CHOICE" -lt 3 ]; then
+  SELECTED_VID="${VID_PROVIDERS_MAP[$VID_CHOICE]}"
+  mediagen config set video-provider "$SELECTED_VID" 2>/dev/null
+  success "Video provider set to: $SELECTED_VID"
 
-      if [ -n "$HF_KEY" ] && [ -n "$HF_SECRET" ]; then
-        mediagen config set api-key "$HF_KEY" 2>/dev/null
-        mediagen config set api-secret "$HF_SECRET" 2>/dev/null
-        success "Higgsfield credentials saved"
-      else
-        warn "Skipped. Run later:"
-        printf '    mediagen config set api-key YOUR_KEY\n'
-        printf '    mediagen config set api-secret YOUR_SECRET\n'
-      fi
-    fi
-    ;;
-
-  3) # Skip
-    warn "Skipped provider setup. Run later:"
-    printf '    mediagen config set provider gemini\n'
-    printf '    mediagen config set api-key YOUR_KEY\n'
-    ;;
-esac
+  case "$VID_CHOICE" in
+    0) setup_provider "runway" "runway" "https://dev.runwayml.com/" "no" ;;
+    1) setup_provider "kling" "kling" "https://app.klingai.com/global/dev" "yes" ;;
+    2) setup_provider "higgsfield" "higgsfield" "https://cloud.higgsfield.ai/api-keys" "yes" ;;
+  esac
+else
+  warn "Skipped. Run later: mediagen config set video-provider <name>"
+fi
 
 # --- Done ---
 printf '\n%s\n\n' "$(bold "$(green 'Setup complete!')")"
@@ -199,13 +208,15 @@ printf '\n'
 printf '  Generate an image:\n'
 printf '    mediagen image generate --prompt "a sunset over the ocean" --output ./sunset.png\n'
 printf '\n'
-printf '  Switch provider anytime:\n'
-printf '    mediagen config set provider gemini\n'
-printf '    mediagen config set provider freepik\n'
-printf '    mediagen config set provider higgsfield\n'
+printf '  Generate a video:\n'
+printf '    mediagen video generate --prompt "cinematic zoom" --output ./video.mp4\n'
 printf '\n'
-printf '  Remove credentials:\n'
-printf '    mediagen config remove freepik\n'
+printf '  Change defaults:\n'
+printf '    mediagen config set image-provider gemini\n'
+printf '    mediagen config set video-provider runway\n'
+printf '\n'
+printf '  Add more providers:\n'
+printf '    mediagen config set api-key YOUR_KEY --provider runway\n'
 printf '\n'
 printf '  Claude Code will automatically use mediagen when you\n'
 printf '  ask it to generate images or videos for your project.\n\n'

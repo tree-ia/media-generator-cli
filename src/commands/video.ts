@@ -11,9 +11,12 @@ export function createVideoCommand(): Command {
   video
     .command('generate')
     .description('Generate a video from an image and text prompt')
-    .requiredOption('-i, --image <path-or-url>', 'Input image (local file or URL)')
+    .option('-i, --image <path-or-url>', 'Input image (local file or URL). Required for some providers.')
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the motion/scene')
-    .option('-m, --model <model>', 'Video model (default: dop-standard). Run "mediagen models" to list.')
+    .option('-m, --model <model>', 'Video model (default varies by provider). Run "mediagen models" to list.')
+    .option('-s, --size <ratio>', 'Aspect ratio: 16:9, 9:16, 1:1, 4:3, 3:4')
+    .option('-d, --duration <seconds>', 'Video duration: 5 or 10 seconds', parseInt)
+    .option('--negative-prompt <text>', 'Elements to exclude from generation (Kling)')
     .option('-o, --output <path>', 'Save video to local file')
     .option('--motion <id>', 'Motion preset ID (use "mediagen motions" to list)')
     .option('--motion-strength <n>', 'Motion strength 0.0-1.0 (default: 0.5)', parseFloat)
@@ -26,16 +29,19 @@ export function createVideoCommand(): Command {
       `
 Examples:
   $ mediagen video generate --image ./hero.png --prompt "cinematic zoom out"
-  $ mediagen video generate --image https://example.com/img.png --prompt "slow pan" --model seedance
-  $ mediagen video generate --image ./photo.png --prompt "dramatic" --output ./hero.mp4
-  $ mediagen video generate --image ./img.png --prompt "test" --no-poll
+  $ mediagen video generate --image ./photo.png --prompt "slow pan" --model seedance --output ./hero.mp4
+  $ mediagen video generate --prompt "sunset timelapse" --provider runway --model gen4.5 --output ./out.mp4
+  $ mediagen video generate --prompt "ocean waves" --provider kling --duration 10 --output ./out.mp4
+  $ mediagen video generate --image ./img.png --prompt "dramatic" --provider runway --duration 5
 
-Models vary by provider. Run "mediagen models" for the full list.
-Video is currently supported by Higgsfield (dop-preview, dop-standard, seedance, kling).`
+Models vary by provider. Run "mediagen models --provider <name>" for the full list.
+Video providers: higgsfield, runway, kling.
+Runway (gen4.5) and Kling support text-to-video (no --image needed).
+Use --duration 5 or --duration 10 for video length (runway, kling).`
     )
     .action(async (opts) => {
       const config = loadConfig()
-      const providerName = opts.provider ?? config.provider
+      const providerName = opts.provider ?? config.videoProvider
       const provider = getProvider(providerName, config)
 
       const spinner = ora('Generating video...').start()
@@ -45,6 +51,9 @@ Video is currently supported by Higgsfield (dop-preview, dop-standard, seedance,
           image: opts.image,
           prompt: opts.prompt,
           model: opts.model,
+          size: opts.size,
+          duration: opts.duration,
+          negativePrompt: opts.negativePrompt,
           motion: opts.motion,
           motionStrength: opts.motionStrength,
           seed: opts.seed,

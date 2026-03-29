@@ -13,7 +13,8 @@ function showConfig(asJson: boolean): void {
   const mask = (val: string) => (val ? '***' + val.slice(-4) : 'not set')
 
   const data = {
-    provider: cfg.provider,
+    imageProvider: cfg.imageProvider,
+    videoProvider: cfg.videoProvider,
     outputDir: cfg.outputDir,
     configPath: getConfigPath(),
     higgsfield: {
@@ -26,6 +27,13 @@ function showConfig(asJson: boolean): void {
     gemini: {
       apiKey: mask(cfg.gemini.apiKey),
     },
+    runway: {
+      apiKey: mask(cfg.runway.apiKey),
+    },
+    kling: {
+      accessKey: mask(cfg.kling.accessKey),
+      secretKey: mask(cfg.kling.secretKey),
+    },
   }
 
   if (asJson) {
@@ -34,7 +42,8 @@ function showConfig(asJson: boolean): void {
   }
 
   out.info(`Config file: ${getConfigPath()}`)
-  out.info(`Provider: ${cfg.provider}`)
+  out.info(`Image provider: ${cfg.imageProvider}`)
+  out.info(`Video provider: ${cfg.videoProvider}`)
   out.info(`Output dir: ${cfg.outputDir}`)
   console.log('')
   out.info(`Higgsfield API Key: ${mask(cfg.higgsfield.apiKey)}`)
@@ -43,6 +52,11 @@ function showConfig(asJson: boolean): void {
   out.info(`Freepik API Key: ${mask(cfg.freepik.apiKey)}`)
   console.log('')
   out.info(`Gemini API Key: ${mask(cfg.gemini.apiKey)}`)
+  console.log('')
+  out.info(`Runway API Key: ${mask(cfg.runway.apiKey)}`)
+  console.log('')
+  out.info(`Kling Access Key: ${mask(cfg.kling.accessKey)}`)
+  out.info(`Kling Secret Key: ${mask(cfg.kling.secretKey)}`)
 }
 
 export function createConfigCommand(): Command {
@@ -66,39 +80,49 @@ Examples:
     .description('Set a configuration value')
     .argument('<key>', 'Config key to set')
     .argument('<value>', 'Value to set')
+    .option('--provider <name>', 'Provider context for api-key/api-secret')
     .addHelpText(
       'after',
       `
 Available keys:
-  provider          Default provider (freepik, higgsfield, gemini)
+  image-provider    Default provider for image generation
+  video-provider    Default provider for video generation
   output-dir        Default output directory
-  api-key           API key for the current provider
-  api-secret        API secret (Higgsfield only)
+  api-key           API key (requires --provider <name>)
+  api-secret        API secret (requires --provider <name>, Higgsfield/Kling only)
 
 Examples:
-  $ mediagen config set provider gemini
-  $ mediagen config set api-key YOUR_GEMINI_API_KEY
-  $ mediagen config set provider freepik
-  $ mediagen config set api-key fpk_abc123
-  $ mediagen config set provider higgsfield
-  $ mediagen config set api-key hf_key_here
-  $ mediagen config set api-secret hf_secret_here
+  $ mediagen config set image-provider freepik
+  $ mediagen config set video-provider runway
+  $ mediagen config set api-key YOUR_KEY --provider gemini
+  $ mediagen config set api-key YOUR_KEY --provider runway
+  $ mediagen config set api-key YOUR_ACCESS_KEY --provider kling
+  $ mediagen config set api-secret YOUR_SECRET --provider kling
   $ mediagen config set output-dir ./public/assets
 
 Config is saved to ~/.config/mediagen/config.json`
     )
-    .action((key: string, value: string) => {
-      const cfg = loadConfig()
+    .action((key: string, value: string, opts) => {
+      const available = listProviders()
 
       switch (key) {
-        case 'provider': {
-          const available = listProviders()
+        case 'image-provider': {
           if (!available.includes(value)) {
             out.error(`Unknown provider "${value}". Available: ${available.join(', ')}`)
             process.exit(1)
           }
-          writePersistedConfig({ provider: value })
-          out.success(`Provider set to: ${value}`)
+          writePersistedConfig({ imageProvider: value })
+          out.success(`Image provider set to: ${value}`)
+          break
+        }
+
+        case 'video-provider': {
+          if (!available.includes(value)) {
+            out.error(`Unknown provider "${value}". Available: ${available.join(', ')}`)
+            process.exit(1)
+          }
+          writePersistedConfig({ videoProvider: value })
+          out.success(`Video provider set to: ${value}`)
           break
         }
 
@@ -107,29 +131,51 @@ Config is saved to ~/.config/mediagen/config.json`
           out.success(`Output directory set to: ${value}`)
           break
 
-        case 'api-key':
-          if (cfg.provider === 'higgsfield') {
+        case 'api-key': {
+          const provider = opts.provider as string | undefined
+          if (!provider) {
+            out.error('--provider is required for api-key. Example: mediagen config set api-key YOUR_KEY --provider gemini')
+            process.exit(1)
+          }
+          if (!available.includes(provider)) {
+            out.error(`Unknown provider "${provider}". Available: ${available.join(', ')}`)
+            process.exit(1)
+          }
+          if (provider === 'higgsfield') {
             writePersistedConfig({ higgsfield: { apiKey: value } })
-          } else if (cfg.provider === 'freepik') {
+          } else if (provider === 'freepik') {
             writePersistedConfig({ freepik: { apiKey: value } })
-          } else if (cfg.provider === 'gemini') {
+          } else if (provider === 'gemini') {
             writePersistedConfig({ gemini: { apiKey: value } })
+          } else if (provider === 'runway') {
+            writePersistedConfig({ runway: { apiKey: value } })
+          } else if (provider === 'kling') {
+            writePersistedConfig({ kling: { accessKey: value } })
           }
-          out.success(`API key saved for ${cfg.provider}`)
+          out.success(`API key saved for ${provider}`)
           break
+        }
 
-        case 'api-secret':
-          if (cfg.provider === 'higgsfield') {
+        case 'api-secret': {
+          const provider = opts.provider as string | undefined
+          if (!provider) {
+            out.error('--provider is required for api-secret. Example: mediagen config set api-secret YOUR_SECRET --provider kling')
+            process.exit(1)
+          }
+          if (provider === 'higgsfield') {
             writePersistedConfig({ higgsfield: { apiSecret: value } })
+          } else if (provider === 'kling') {
+            writePersistedConfig({ kling: { secretKey: value } })
           } else {
-            out.warn(`${cfg.provider} does not use an API secret.`)
+            out.warn(`${provider} does not use an API secret.`)
           }
           break
+        }
 
         default:
           out.error(
             `Unknown config key "${key}".\n` +
-              'Available keys: provider, output-dir, api-key, api-secret'
+              'Available keys: image-provider, video-provider, output-dir, api-key, api-secret'
           )
           process.exit(1)
       }
@@ -138,14 +184,15 @@ Config is saved to ~/.config/mediagen/config.json`
   config
     .command('remove')
     .description('Remove API credentials for a provider')
-    .argument('<provider>', 'Provider to remove credentials for (freepik, higgsfield, gemini)')
+    .argument('<provider>', 'Provider to remove credentials for (freepik, higgsfield, gemini, runway, kling)')
     .addHelpText(
       'after',
       `
 Examples:
   $ mediagen config remove freepik
   $ mediagen config remove higgsfield
-  $ mediagen config remove gemini
+  $ mediagen config remove runway
+  $ mediagen config remove kling
 
 This removes the stored API key (and secret) for the specified provider.`
     )
@@ -179,8 +226,11 @@ This removes the stored API key (and secret) for the specified provider.`
       const providers = listProviders()
       out.info('Available providers:')
       providers.forEach((p) => {
-        const active = p === cfg.provider ? ' (active)' : ''
-        console.log(`  - ${p}${active}`)
+        const tags: string[] = []
+        if (p === cfg.imageProvider) tags.push('image')
+        if (p === cfg.videoProvider) tags.push('video')
+        const suffix = tags.length > 0 ? ` (${tags.join(', ')})` : ''
+        console.log(`  - ${p}${suffix}`)
       })
     })
 

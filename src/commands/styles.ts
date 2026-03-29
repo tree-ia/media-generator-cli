@@ -20,7 +20,7 @@ Use a style ID with image generation:
     )
     .action(async (opts) => {
       const config = loadConfig()
-      const providerName = opts.provider ?? config.provider
+      const providerName = opts.provider ?? config.imageProvider
       const provider = getProvider(providerName, config)
 
       try {

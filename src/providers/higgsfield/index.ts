@@ -89,6 +89,10 @@ export class HiggsFieldProvider implements Provider {
       )
     }
 
+    if (!opts.image) {
+      throw new Error('Higgsfield video requires an input image. Use --image <path-or-url>.')
+    }
+
     // Upload local file if needed
     let imageUrl = opts.image
     if (!opts.image.startsWith('http')) {

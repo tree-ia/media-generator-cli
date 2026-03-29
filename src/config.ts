@@ -6,7 +6,8 @@ const CONFIG_DIR = join(homedir(), '.config', 'mediagen')
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
 
 export interface AppConfig {
-  provider: string
+  imageProvider: string
+  videoProvider: string
   outputDir: string
   higgsfield: {
     apiKey: string
@@ -18,10 +19,19 @@ export interface AppConfig {
   gemini: {
     apiKey: string
   }
+  runway: {
+    apiKey: string
+  }
+  kling: {
+    accessKey: string
+    secretKey: string
+  }
 }
 
 export interface PersistedConfig {
-  provider?: string
+  provider?: string // legacy — migrated to imageProvider/videoProvider
+  imageProvider?: string
+  videoProvider?: string
   outputDir?: string
   higgsfield?: {
     apiKey?: string
@@ -32,6 +42,13 @@ export interface PersistedConfig {
   }
   gemini?: {
     apiKey?: string
+  }
+  runway?: {
+    apiKey?: string
+  }
+  kling?: {
+    accessKey?: string
+    secretKey?: string
   }
 }
 
@@ -61,6 +78,12 @@ export function writePersistedConfig(update: PersistedConfig): void {
   if (update.gemini || current.gemini) {
     merged.gemini = { ...current.gemini, ...update.gemini }
   }
+  if (update.runway || current.runway) {
+    merged.runway = { ...current.runway, ...update.runway }
+  }
+  if (update.kling || current.kling) {
+    merged.kling = { ...current.kling, ...update.kling }
+  }
 
   mkdirSync(CONFIG_DIR, { recursive: true })
   writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2) + '\n', 'utf-8')
@@ -70,7 +93,7 @@ export function removeProviderConfig(providerName: string): boolean {
   const current = readPersistedConfig()
 
   const key = providerName as keyof PersistedConfig
-  if ((key === 'higgsfield' || key === 'freepik' || key === 'gemini') && current[key]) {
+  if ((key === 'higgsfield' || key === 'freepik' || key === 'gemini' || key === 'runway' || key === 'kling') && current[key]) {
     delete current[key]
     writeFileSync(CONFIG_FILE, JSON.stringify(current, null, 2) + '\n', 'utf-8')
     return true
@@ -86,8 +109,12 @@ export function getConfigPath(): string {
 export function loadConfig(): AppConfig {
   const persisted = readPersistedConfig()
 
+  // Retrocompatibility: legacy "provider" field used as fallback
+  const legacyProvider = persisted.provider
+
   return {
-    provider: persisted.provider ?? 'freepik',
+    imageProvider: persisted.imageProvider ?? legacyProvider ?? 'freepik',
+    videoProvider: persisted.videoProvider ?? legacyProvider ?? 'higgsfield',
     outputDir: persisted.outputDir ?? './output',
     higgsfield: {
       apiKey: persisted.higgsfield?.apiKey ?? '',
@@ -98,6 +125,13 @@ export function loadConfig(): AppConfig {
     },
     gemini: {
       apiKey: persisted.gemini?.apiKey ?? '',
+    },
+    runway: {
+      apiKey: persisted.runway?.apiKey ?? '',
+    },
+    kling: {
+      accessKey: persisted.kling?.accessKey ?? '',
+      secretKey: persisted.kling?.secretKey ?? '',
     },
   }
 }
