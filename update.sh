@@ -15,6 +15,10 @@ printf '\n%s\n\n' "$(bold 'mediagen — update')"
 
 cd "$SCRIPT_DIR"
 
+info "Pulling latest changes..."
+git pull --ff-only 2>/dev/null || git pull 2>/dev/null
+success "Repository updated"
+
 info "Installing dependencies..."
 npm install --silent 2>/dev/null
 success "Dependencies installed"
