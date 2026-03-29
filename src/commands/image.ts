@@ -34,14 +34,12 @@ Examples:
   $ mediagen image generate --prompt "creative art" --model reve --output ./art.png
   $ mediagen image generate --prompt "test" --no-poll
 
-Models (run "mediagen models" for full list):
-  soul     (default) Higgsfield flagship text-to-image
-  reve               Versatile text-to-image
-  seedream            ByteDance Seedream v4, creative/artistic
+Models vary by provider. Run "mediagen models" for the full list.
 
 Parameters:
   --size: aspect ratio (1:1, 16:9, 9:16, 4:3, 3:2, 21:9)
-  --quality: resolution (720p, 1080p, 2K, 4K)`
+  --quality: resolution (1K, 2K, 4K)
+  --provider: override default provider (gemini, freepik, higgsfield)`
     )
     .action(async (opts) => {
       const config = loadConfig()
@@ -56,6 +54,7 @@ Parameters:
           model: opts.model,
           size: opts.size,
           quality: opts.quality,
+          output: opts.output,
           style: opts.style,
           styleStrength: opts.styleStrength,
           character: opts.character,
@@ -74,7 +73,9 @@ Parameters:
         out.info(`Request ID: ${result.requestId}`)
         out.info(`Status: ${out.statusColor(result.status)}`)
 
-        if (result.url) {
+        if (result.localPath) {
+          out.success(`Saved to: ${result.localPath}`)
+        } else if (result.url) {
           out.success(`URL: ${result.url}`)
 
           if (opts.output) {

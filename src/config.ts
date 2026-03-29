@@ -1,9 +1,6 @@
-import { config as dotenvConfig } from 'dotenv'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
-import { resolve, join } from 'path'
+import { join } from 'path'
 import { homedir } from 'os'
-
-dotenvConfig({ path: resolve(process.cwd(), '.env') })
 
 const CONFIG_DIR = join(homedir(), '.config', 'mediagen')
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
@@ -18,6 +15,9 @@ export interface AppConfig {
   freepik: {
     apiKey: string
   }
+  gemini: {
+    apiKey: string
+  }
 }
 
 export interface PersistedConfig {
@@ -28,6 +28,9 @@ export interface PersistedConfig {
     apiSecret?: string
   }
   freepik?: {
+    apiKey?: string
+  }
+  gemini?: {
     apiKey?: string
   }
 }
@@ -55,6 +58,9 @@ export function writePersistedConfig(update: PersistedConfig): void {
   if (update.freepik || current.freepik) {
     merged.freepik = { ...current.freepik, ...update.freepik }
   }
+  if (update.gemini || current.gemini) {
+    merged.gemini = { ...current.gemini, ...update.gemini }
+  }
 
   mkdirSync(CONFIG_DIR, { recursive: true })
   writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2) + '\n', 'utf-8')
@@ -63,14 +69,9 @@ export function writePersistedConfig(update: PersistedConfig): void {
 export function removeProviderConfig(providerName: string): boolean {
   const current = readPersistedConfig()
 
-  if (providerName === 'higgsfield' && current.higgsfield) {
-    delete current.higgsfield
-    writeFileSync(CONFIG_FILE, JSON.stringify(current, null, 2) + '\n', 'utf-8')
-    return true
-  }
-
-  if (providerName === 'freepik' && current.freepik) {
-    delete current.freepik
+  const key = providerName as keyof PersistedConfig
+  if ((key === 'higgsfield' || key === 'freepik' || key === 'gemini') && current[key]) {
+    delete current[key]
     writeFileSync(CONFIG_FILE, JSON.stringify(current, null, 2) + '\n', 'utf-8')
     return true
   }
@@ -82,19 +83,21 @@ export function getConfigPath(): string {
   return CONFIG_FILE
 }
 
-// Priority: env vars > persisted config > defaults
 export function loadConfig(): AppConfig {
   const persisted = readPersistedConfig()
 
   return {
-    provider: process.env.MEDIAGEN_PROVIDER ?? persisted.provider ?? 'freepik',
-    outputDir: process.env.MEDIAGEN_OUTPUT_DIR ?? persisted.outputDir ?? './output',
+    provider: persisted.provider ?? 'freepik',
+    outputDir: persisted.outputDir ?? './output',
     higgsfield: {
-      apiKey: process.env.HF_API_KEY ?? persisted.higgsfield?.apiKey ?? '',
-      apiSecret: process.env.HF_API_SECRET ?? persisted.higgsfield?.apiSecret ?? '',
+      apiKey: persisted.higgsfield?.apiKey ?? '',
+      apiSecret: persisted.higgsfield?.apiSecret ?? '',
     },
     freepik: {
-      apiKey: process.env.FREEPIK_API_KEY ?? persisted.freepik?.apiKey ?? '',
+      apiKey: persisted.freepik?.apiKey ?? '',
+    },
+    gemini: {
+      apiKey: persisted.gemini?.apiKey ?? '',
     },
   }
 }

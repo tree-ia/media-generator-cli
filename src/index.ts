@@ -17,7 +17,7 @@ program
   .name('mediagen')
   .description(
     'AI media generation CLI — generate images and videos from text prompts.\n\n' +
-      'Supports multiple providers (Higgsfield, and more coming soon).\n' +
+      'Supports multiple providers (Gemini, Freepik, Higgsfield).\n' +
       'Each command has its own --help with examples.'
   )
   .version('0.1.0', '-v, --version')

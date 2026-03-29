@@ -13,7 +13,7 @@ export function createVideoCommand(): Command {
     .description('Generate a video from an image and text prompt')
     .requiredOption('-i, --image <path-or-url>', 'Input image (local file or URL)')
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the motion/scene')
-    .option('-m, --model <model>', 'DoP model: dop-lite, dop-turbo, dop-standard (default: dop-standard)', 'dop-standard')
+    .option('-m, --model <model>', 'Video model (default: dop-standard). Run "mediagen models" to list.')
     .option('-o, --output <path>', 'Save video to local file')
     .option('--motion <id>', 'Motion preset ID (use "mediagen motions" to list)')
     .option('--motion-strength <n>', 'Motion strength 0.0-1.0 (default: 0.5)', parseFloat)
@@ -26,14 +26,12 @@ export function createVideoCommand(): Command {
       `
 Examples:
   $ mediagen video generate --image ./hero.png --prompt "cinematic zoom out"
-  $ mediagen video generate --image https://example.com/img.png --prompt "slow pan" --model dop-turbo
-  $ mediagen video generate --image ./photo.png --prompt "dramatic" --motion abc123 --output ./hero.mp4
+  $ mediagen video generate --image https://example.com/img.png --prompt "slow pan" --model seedance
+  $ mediagen video generate --image ./photo.png --prompt "dramatic" --output ./hero.mp4
   $ mediagen video generate --image ./img.png --prompt "test" --no-poll
 
-Models:
-  dop-lite       Basic quality, fastest
-  dop-turbo      2x speed, priority queue
-  dop-standard   Highest quality, priority queue (default)`
+Models vary by provider. Run "mediagen models" for the full list.
+Video is currently supported by Higgsfield (dop-preview, dop-standard, seedance, kling).`
     )
     .action(async (opts) => {
       const config = loadConfig()

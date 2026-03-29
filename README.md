@@ -2,7 +2,7 @@
 
 CLI for AI media generation — images and videos from text prompts. Built for developers who want to generate assets directly from the terminal or let AI coding assistants (like Claude Code) produce visuals autonomously during development.
 
-Supports multiple providers with an extensible architecture. Currently ships with **Higgsfield** (Soul for images, DoP for videos).
+Supports multiple providers with an extensible architecture: **Gemini** (Google, free tier), **Freepik** (10+ models), and **Higgsfield** (images + video).
 
 ## Quick setup
 
@@ -19,7 +19,7 @@ The setup script will:
 2. Build the project (`tsc`)
 3. Link `mediagen` globally (`npm link`)
 4. Install the Claude Code skill at `~/.claude/skills/mediagen/`
-5. Prompt for Higgsfield API credentials (saved to `~/.config/mediagen/config.json`)
+5. Prompt for provider selection and API credentials (saved to `~/.config/mediagen/config.json`)
 
 ### Manual installation
 
@@ -37,8 +37,8 @@ mkdir -p ~/.claude/skills/mediagen
 cp skills/SKILL.md ~/.claude/skills/mediagen/SKILL.md
 
 # Configure credentials
-mediagen config set api-key YOUR_KEY
-mediagen config set api-secret YOUR_SECRET
+mediagen config set provider gemini
+mediagen config set api-key YOUR_GEMINI_API_KEY
 ```
 
 ### Verify installation
@@ -50,65 +50,54 @@ mediagen models
 
 ## Configuration
 
-### 1. Get API credentials
+### Providers and credentials
 
-**Higgsfield** (requires Creator plan or higher):
+**Gemini** (free tier available):
+
+1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+2. Create an API key
+3. Configure:
+```bash
+mediagen config set provider gemini
+mediagen config set api-key YOUR_KEY
+```
+
+**Freepik** (€5 free credit):
+
+1. Go to [freepik.com/api](https://www.freepik.com/api) → Developer Dashboard
+2. Generate an API key
+3. Configure:
+```bash
+mediagen config set provider freepik
+mediagen config set api-key YOUR_KEY
+```
+
+**Higgsfield** (Creator plan required):
 
 1. Go to [cloud.higgsfield.ai/api-keys](https://cloud.higgsfield.ai/api-keys)
 2. Generate a new API key pair (Key + Secret)
-3. Copy both immediately — the secret is shown only once
-
-### 2. Save credentials
-
-The recommended way — credentials are stored in `~/.config/mediagen/config.json`:
-
+3. Configure:
 ```bash
-mediagen config set api-key YOUR_API_KEY
-mediagen config set api-secret YOUR_API_SECRET
-```
-
-#### Alternative: environment variables
-
-Environment variables take priority over saved config. Use this for CI/CD or temporary overrides:
-
-```bash
-export HF_API_KEY="your-api-key"
-export HF_API_SECRET="your-api-secret"
-```
-
-Or create a `.env` file in the directory where you run `mediagen`:
-
-```bash
-# .env
-HF_API_KEY=your-api-key
-HF_API_SECRET=your-api-secret
-```
-
-### 3. Verify configuration
-
-```bash
-mediagen config            # show current config (credentials are masked)
-mediagen config show --json # JSON output
-mediagen config path        # show config file location
-mediagen config providers   # list available providers
+mediagen config set provider higgsfield
+mediagen config set api-key YOUR_KEY
+mediagen config set api-secret YOUR_SECRET
 ```
 
 ### Configuration commands
 
 ```bash
-mediagen config set api-key <key>          # save API key
-mediagen config set api-secret <secret>    # save API secret
-mediagen config set provider <name>        # change default provider
-mediagen config set output-dir <path>      # change default output directory
+mediagen config                           # show current config (credentials masked)
+mediagen config show --json               # JSON output
+mediagen config path                      # show config file location
+mediagen config providers                 # list available providers
+mediagen config set provider <name>       # change default provider
+mediagen config set api-key <key>         # save API key for current provider
+mediagen config set api-secret <secret>   # save API secret (Higgsfield only)
+mediagen config set output-dir <path>     # change default output directory
+mediagen config remove <provider>         # remove stored credentials
 ```
 
-### Priority order
-
-Config values are resolved in this order (first wins):
-
-1. **Environment variables** (`HF_API_KEY`, `HF_API_SECRET`, `MEDIAGEN_PROVIDER`)
-2. **Saved config** (`~/.config/mediagen/config.json`)
-3. **Defaults** (provider: `higgsfield`, output: `./output`)
+All config is stored in `~/.config/mediagen/config.json`.
 
 ## Usage
 
@@ -119,7 +108,6 @@ mediagen --help
 mediagen image --help
 mediagen image generate --help
 mediagen video generate --help
-mediagen characters --help
 ```
 
 ### Generate an image
@@ -128,53 +116,44 @@ mediagen characters --help
 # Basic
 mediagen image generate --prompt "modern office building at sunset"
 
-# Full options
+# With size and quality
 mediagen image generate \
   --prompt "hero banner for construction company" \
-  --size 2048x1152 \
-  --quality 1080p \
+  --size 16:9 \
+  --quality 2K \
   --output ./public/hero.png
 
-# With style
+# With specific provider and model
 mediagen image generate \
-  --prompt "landscape painting" \
-  --style <style-id> \
-  --style-strength 0.8 \
-  --output ./artwork.png
+  --prompt "logo design" \
+  --provider gemini \
+  --model gemini-pro-preview \
+  --quality 2K \
+  --output ./logo.png
 
-# With character consistency
-mediagen image generate \
-  --prompt "worker inspecting site" \
-  --character <character-id> \
-  --output ./worker-scene.png
-
-# Non-blocking (returns request ID immediately)
+# Non-blocking (returns request ID immediately — Freepik/Higgsfield only)
 mediagen image generate --prompt "test image" --no-poll
 ```
 
 ### Generate a video
+
+Video generation is currently supported by Higgsfield only.
 
 ```bash
 # From local image
 mediagen video generate \
   --image ./hero.png \
   --prompt "cinematic zoom out" \
+  --provider higgsfield \
   --output ./hero-video.mp4
 
 # From URL with specific model
 mediagen video generate \
   --image https://example.com/photo.png \
   --prompt "slow pan right" \
-  --model dop-turbo \
+  --model seedance \
+  --provider higgsfield \
   --output ./pan.mp4
-
-# With motion preset
-mediagen video generate \
-  --image ./scene.png \
-  --prompt "dramatic reveal" \
-  --motion <motion-id> \
-  --motion-strength 0.7 \
-  --output ./reveal.mp4
 ```
 
 ### Check generation status
@@ -187,19 +166,15 @@ mediagen status <request-id> --json
 ### Browse available resources
 
 ```bash
-# Models
-mediagen models
-
-# Image styles (for --style flag)
-mediagen styles
-
-# Video motion presets (for --motion flag)
-mediagen motions
+mediagen models                          # list models for current provider
+mediagen models --provider freepik       # list models for a specific provider
+mediagen styles                          # list image styles
+mediagen motions                         # list video motion presets
 ```
 
 ### Upload an image
 
-Upload a local file to get a public URL (useful for video generation):
+Upload a local file to get a public URL (useful for video generation, Higgsfield only):
 
 ```bash
 mediagen upload ./reference.png
@@ -207,29 +182,50 @@ mediagen upload ./reference.png
 
 ### Manage characters
 
-Characters provide visual consistency across multiple generations:
+Characters provide visual consistency across multiple generations (Higgsfield only):
 
 ```bash
-# List existing characters
 mediagen characters list
-
-# Create from reference images
 mediagen characters create --name "Worker" --images ./ref1.png ./ref2.png
-
-# Use in generation
 mediagen image generate --prompt "worker on site" --character <id> --output ./scene.png
 ```
 
-### Configuration
+## Available models
 
-```bash
-# Show current config
-mediagen config
-mediagen config show --json
+### Gemini
 
-# List available providers
-mediagen config providers
-```
+| Model | Name | Quality | Notes |
+|-------|------|---------|-------|
+| `gemini-flash` | Gemini 2.5 Flash | Good | Fast, free tier available |
+| `gemini-flash-preview` | Gemini 3.1 Flash Preview | High | Supports 2K/4K |
+| `gemini-pro-preview` | Gemini 3 Pro Preview | Highest | Supports 2K/4K, slower |
+
+### Freepik
+
+| Model | Name | Notes |
+|-------|------|-------|
+| `mystic` | Mystic | Flagship, hyper-realistic |
+| `flux-2-pro` | Flux 2 Pro | High quality, custom dimensions |
+| `flux-2-klein` | Flux 2 Klein | Sub-second generation |
+| `flux-kontext` | Flux Kontext Pro | Context-aware |
+| `flux-pro` | Flux Pro 1.1 | Great detail |
+| `flux-dev` | Flux Dev | Lighting/framing effects |
+| `hyperflux` | HyperFlux | Ultra-fast |
+| `seedream-4.5` | Seedream 4.5 | Creative, cinematic |
+| `seedream-4` | Seedream 4 | Artistic |
+| `runway` | RunWay | Pixel ratio format |
+
+### Higgsfield
+
+| Model | Type | Notes |
+|-------|------|-------|
+| `soul` | Image | Flagship text-to-image |
+| `reve` | Image | Versatile |
+| `seedream` | Image | ByteDance, artistic |
+| `dop-preview` | Video | Fast preview quality |
+| `dop-standard` | Video | Highest quality |
+| `seedance` | Video | Professional-grade |
+| `kling` | Video | Cinematic animations |
 
 ## Global flags
 
@@ -243,24 +239,11 @@ These flags work on all generation commands:
 | `--no-poll` | Return request ID without waiting |
 | `--help, -h` | Show help for any command |
 
-## Available image sizes
+## Aspect ratios
 
-| Size | Aspect |
-|------|--------|
-| `2048x1152` | 16:9 landscape |
-| `2048x1536` | 4:3 landscape |
-| `1536x1536` | 1:1 square (default) |
-| `1152x2048` | 9:16 portrait |
-| `1536x2048` | 3:4 portrait |
-| `2016x1344`, `1696x960`, `1632x1088`, `1536x1152`, `1152x1536`, `1344x2016`, `960x1696`, `1088x1632` | Other ratios |
+Use `--size` with any of these ratios:
 
-## Video models
-
-| Model | Speed | Quality | Queue |
-|-------|-------|---------|-------|
-| `dop-lite` | Fast | Basic | Standard |
-| `dop-turbo` | 2x | Good | Priority |
-| `dop-standard` | Normal | Best | Priority |
+`1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `21:9`
 
 ## Claude Code integration
 
@@ -279,18 +262,7 @@ mkdir -p .claude/skills/mediagen
 cp skills/SKILL.md .claude/skills/mediagen/SKILL.md
 ```
 
-Once installed, Claude Code will automatically use `mediagen` when you ask it to generate images or videos for your project. Example prompts:
-
-- "Generate a hero image for the landing page"
-- "Create an OG image for the blog post"
-- "Make a 5-second video from this screenshot"
-
-### How it works
-
-1. Claude reads the skill description and knows `mediagen` is available
-2. When you ask for a visual asset, Claude runs `mediagen image generate --help` to discover flags
-3. Claude crafts the appropriate command with your prompt and saves the result
-4. Total context cost: ~350 tokens (vs ~50,000+ for an equivalent MCP server)
+Once installed, Claude Code will automatically use `mediagen` when you ask it to generate images or videos for your project.
 
 ### Why CLI over MCP?
 
@@ -307,7 +279,7 @@ Once installed, Claude Code will automatically use `mediagen` when you ask it to
 ```
 src/
 ├── index.ts                    # Entry point, commander setup
-├── config.ts                   # Environment and configuration
+├── config.ts                   # Configuration (~/.config/mediagen/config.json)
 ├── commands/                   # One file per command group
 │   ├── image.ts                #   mediagen image generate
 │   ├── video.ts                #   mediagen video generate
@@ -317,14 +289,22 @@ src/
 │   ├── motions.ts              #   mediagen motions
 │   ├── upload.ts               #   mediagen upload <file>
 │   ├── characters.ts           #   mediagen characters list|create
-│   └── config.ts               #   mediagen config show|providers
+│   └── config.ts               #   mediagen config show|set|remove|providers
 ├── providers/
 │   ├── types.ts                # Provider interface (contract)
 │   ├── registry.ts             # Provider factory
-│   └── higgsfield/
-│       ├── index.ts            # HiggsFieldProvider implementation
-│       ├── client.ts           # @higgsfield/client SDK wrapper
-│       └── models.ts           # Available models and defaults
+│   ├── gemini/                 # Google Gemini (direct API)
+│   │   ├── index.ts
+│   │   ├── client.ts
+│   │   └── models.ts
+│   ├── freepik/                # Freepik API
+│   │   ├── index.ts
+│   │   ├── client.ts
+│   │   └── models.ts
+│   └── higgsfield/             # Higgsfield API
+│       ├── index.ts
+│       ├── client.ts
+│       └── models.ts
 └── utils/
     ├── output.ts               # Formatting (table, colors, JSON)
     └── download.ts             # Download results to local files
@@ -335,6 +315,16 @@ src/
 1. Create `src/providers/<name>/index.ts` implementing the `Provider` interface
 2. Register it in `src/providers/registry.ts`
 3. No changes needed in commands — they work through the provider abstraction
+
+## Updating
+
+After pulling new changes:
+
+```bash
+./update.sh
+```
+
+This rebuilds, relinks globally, and updates the Claude Code skill.
 
 ## Development
 

@@ -23,6 +23,9 @@ function showConfig(asJson: boolean): void {
     freepik: {
       apiKey: mask(cfg.freepik.apiKey),
     },
+    gemini: {
+      apiKey: mask(cfg.gemini.apiKey),
+    },
   }
 
   if (asJson) {
@@ -38,6 +41,8 @@ function showConfig(asJson: boolean): void {
   out.info(`Higgsfield API Secret: ${mask(cfg.higgsfield.apiSecret)}`)
   console.log('')
   out.info(`Freepik API Key: ${mask(cfg.freepik.apiKey)}`)
+  console.log('')
+  out.info(`Gemini API Key: ${mask(cfg.gemini.apiKey)}`)
 }
 
 export function createConfigCommand(): Command {
@@ -65,12 +70,14 @@ Examples:
       'after',
       `
 Available keys:
-  provider          Default provider (freepik, higgsfield)
+  provider          Default provider (freepik, higgsfield, gemini)
   output-dir        Default output directory
   api-key           API key for the current provider
   api-secret        API secret (Higgsfield only)
 
 Examples:
+  $ mediagen config set provider gemini
+  $ mediagen config set api-key YOUR_GEMINI_API_KEY
   $ mediagen config set provider freepik
   $ mediagen config set api-key fpk_abc123
   $ mediagen config set provider higgsfield
@@ -78,8 +85,7 @@ Examples:
   $ mediagen config set api-secret hf_secret_here
   $ mediagen config set output-dir ./public/assets
 
-Config is saved to ~/.config/mediagen/config.json
-Environment variables take priority over saved config.`
+Config is saved to ~/.config/mediagen/config.json`
     )
     .action((key: string, value: string) => {
       const cfg = loadConfig()
@@ -106,6 +112,8 @@ Environment variables take priority over saved config.`
             writePersistedConfig({ higgsfield: { apiKey: value } })
           } else if (cfg.provider === 'freepik') {
             writePersistedConfig({ freepik: { apiKey: value } })
+          } else if (cfg.provider === 'gemini') {
+            writePersistedConfig({ gemini: { apiKey: value } })
           }
           out.success(`API key saved for ${cfg.provider}`)
           break
@@ -130,16 +138,16 @@ Environment variables take priority over saved config.`
   config
     .command('remove')
     .description('Remove API credentials for a provider')
-    .argument('<provider>', 'Provider to remove credentials for (freepik, higgsfield)')
+    .argument('<provider>', 'Provider to remove credentials for (freepik, higgsfield, gemini)')
     .addHelpText(
       'after',
       `
 Examples:
   $ mediagen config remove freepik
   $ mediagen config remove higgsfield
+  $ mediagen config remove gemini
 
-This removes the stored API key (and secret) for the specified provider.
-Environment variables are not affected.`
+This removes the stored API key (and secret) for the specified provider.`
     )
     .action((provider: string) => {
       const available = listProviders()

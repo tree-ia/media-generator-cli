@@ -105,6 +105,7 @@ success "Skill installed at $SKILL_DIR/SKILL.md"
 printf '\n%s\n\n' "$(bold 'Choose your provider:')"
 
 PROVIDERS=(
+  "Gemini      Google Gemini direct API, free tier, 2.5 Flash/3.1/Pro"
   "Freepik     10+ image models, €5 free credit, pay-as-you-go"
   "Higgsfield  Soul, DoP video, Kling, Seedance (Creator plan)"
   "Skip        Configure later"
@@ -114,7 +115,28 @@ select_option "${PROVIDERS[@]}"
 CHOICE=$?
 
 case "$CHOICE" in
-  0) # Freepik
+  0) # Gemini
+    mediagen config set provider gemini 2>/dev/null
+
+    HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.gemini?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
+    if [ "$HAS_KEY" = "yes" ]; then
+      success "Gemini credentials already configured"
+    else
+      printf '\n'
+      info "Enter your Google Gemini API key"
+      printf '  Get one at: %s\n\n' "$(dim 'https://aistudio.google.com/apikey')"
+      read -rp "  API Key: " GEMINI_KEY
+
+      if [ -n "$GEMINI_KEY" ]; then
+        mediagen config set api-key "$GEMINI_KEY" 2>/dev/null
+        success "Gemini API key saved"
+      else
+        warn "Skipped. Run later: mediagen config set api-key YOUR_KEY"
+      fi
+    fi
+    ;;
+
+  1) # Freepik
     mediagen config set provider freepik 2>/dev/null
 
     HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.freepik?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
@@ -135,7 +157,7 @@ case "$CHOICE" in
     fi
     ;;
 
-  1) # Higgsfield
+  2) # Higgsfield
     mediagen config set provider higgsfield 2>/dev/null
 
     HAS_KEY=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8'));console.log(c.higgsfield?.apiKey?'yes':'no')}catch{console.log('no')}" 2>/dev/null)
@@ -160,9 +182,9 @@ case "$CHOICE" in
     fi
     ;;
 
-  2) # Skip
+  3) # Skip
     warn "Skipped provider setup. Run later:"
-    printf '    mediagen config set provider freepik\n'
+    printf '    mediagen config set provider gemini\n'
     printf '    mediagen config set api-key YOUR_KEY\n'
     ;;
 esac
@@ -178,6 +200,7 @@ printf '  Generate an image:\n'
 printf '    mediagen image generate --prompt "a sunset over the ocean" --output ./sunset.png\n'
 printf '\n'
 printf '  Switch provider anytime:\n'
+printf '    mediagen config set provider gemini\n'
 printf '    mediagen config set provider freepik\n'
 printf '    mediagen config set provider higgsfield\n'
 printf '\n'
