@@ -1,5 +1,5 @@
-import { readFile } from 'fs/promises'
 import type { AppConfig } from '../../config.js'
+import { resolveToDataUri } from '../../utils/image.js'
 import type {
   Provider,
   ImageOptions,
@@ -64,6 +64,16 @@ export class RunwayProvider implements Provider {
 
     if (opts.seed !== undefined) body.seed = opts.seed
 
+    if (opts.images?.length) {
+      const refs = await Promise.all(
+        opts.images.slice(0, 3).map(async (img, i) => ({
+          uri: await resolveToDataUri(img),
+          tag: `ref${i + 1}`,
+        }))
+      )
+      body.referenceImages = refs
+    }
+
     const task = await createImageTask(this.apiKey, body)
 
     if (opts.noPoll) {
@@ -109,20 +119,18 @@ export class RunwayProvider implements Provider {
     if (opts.duration) body.duration = opts.duration
     if (opts.seed !== undefined) body.seed = opts.seed
 
-    // Handle image input
-    if (opts.image) {
-      if (opts.image.startsWith('http')) {
-        body.promptImage = opts.image
-      } else {
-        const buffer = await readFile(opts.image)
-        const base64 = buffer.toString('base64')
-        const mimeType = opts.image.endsWith('.jpg') || opts.image.endsWith('.jpeg')
-          ? 'image/jpeg'
-          : opts.image.endsWith('.webp')
-            ? 'image/webp'
-            : 'image/png'
-        body.promptImage = `data:${mimeType};base64,${base64}`
-      }
+    // Handle image input (supports first/last frame with 2 images)
+    if (opts.images && opts.images.length > 1) {
+      const [first, last] = await Promise.all([
+        resolveToDataUri(opts.images[0]),
+        resolveToDataUri(opts.images[1]),
+      ])
+      body.promptImage = [
+        { uri: first, position: 'first' },
+        { uri: last, position: 'last' },
+      ]
+    } else if (opts.image) {
+      body.promptImage = await resolveToDataUri(opts.image)
     }
 
     const task = await createVideoTask(this.apiKey, body)

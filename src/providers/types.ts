@@ -1,5 +1,6 @@
 export interface ImageOptions {
   prompt: string
+  images?: string[]
   model?: string
   size?: string
   quality?: string
@@ -14,6 +15,7 @@ export interface ImageOptions {
 
 export interface VideoOptions {
   image?: string
+  images?: string[]
   prompt: string
   model?: string
   size?: string

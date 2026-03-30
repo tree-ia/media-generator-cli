@@ -8,6 +8,7 @@ export interface FreepikModelConfig {
   endpoint: string
   statusEndpoint: string
   paramStyle: 'mystic' | 'flux-wh' | 'flux-aspect' | 'seedream' | 'runway'
+  supportsImageInput?: boolean
 }
 
 export const FREEPIK_MODELS: FreepikModelConfig[] = [
@@ -47,6 +48,7 @@ export const FREEPIK_MODELS: FreepikModelConfig[] = [
     statusEndpoint: '/v1/ai/text-to-image/flux-kontext-pro',
     paramStyle: 'flux-aspect',
     description: 'Context-aware generation with optional image input.',
+    supportsImageInput: true,
   },
   {
     id: 'flux-pro',

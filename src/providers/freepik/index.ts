@@ -1,4 +1,5 @@
 import type { AppConfig } from '../../config.js'
+import { resolveToDataUri } from '../../utils/image.js'
 import type {
   Provider,
   ImageOptions,
@@ -52,6 +53,10 @@ export class FreepikProvider implements Provider {
     }
 
     const body = this.buildImageBody(modelCfg.paramStyle, opts)
+
+    if (modelCfg.supportsImageInput && opts.images?.length) {
+      body.image_url = await resolveToDataUri(opts.images[0])
+    }
 
     const task = await submitGeneration(this.apiKey, modelCfg.endpoint, body)
 

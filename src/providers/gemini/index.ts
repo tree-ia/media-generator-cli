@@ -1,6 +1,7 @@
 import { writeFile, mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import { randomUUID } from 'crypto'
+import { resolveToBase64 } from '../../utils/image.js'
 import type { AppConfig } from '../../config.js'
 import type {
   Provider,
@@ -50,16 +51,22 @@ export class GeminiProvider implements Provider {
     const aspectRatio = opts.size ?? undefined
     const imageSize = modelCfg.supportsImageSize ? this.mapQualityToSize(opts.quality) : undefined
 
+    let refImages: Array<{ mimeType: string; data: string }> | undefined
+    if (opts.images?.length) {
+      refImages = await Promise.all(opts.images.map(resolveToBase64))
+    }
+
     const response = await generateImage(this.apiKey, {
       model: modelCfg.model,
       prompt: opts.prompt,
       aspectRatio,
       imageSize,
+      images: refImages,
     })
 
-    const imageData = extractImageData(response)
+    const outputImage = extractImageData(response)
 
-    if (!imageData) {
+    if (!outputImage) {
       return {
         requestId: randomUUID(),
         status: 'failed',
@@ -67,12 +74,12 @@ export class GeminiProvider implements Provider {
     }
 
     // Gemini returns base64 data directly — save to a temp file and return path
-    const ext = imageData.mimeType === 'image/jpeg' ? '.jpg' : '.png'
+    const ext = outputImage.mimeType === 'image/jpeg' ? '.jpg' : '.png'
     const tempDir = opts.output ? dirname(opts.output) : '/tmp'
     const tempPath = opts.output ?? `${tempDir}/gemini-${randomUUID()}${ext}`
 
     await mkdir(dirname(tempPath), { recursive: true })
-    const buffer = Buffer.from(imageData.data, 'base64')
+    const buffer = Buffer.from(outputImage.data, 'base64')
     await writeFile(tempPath, buffer)
 
     return {

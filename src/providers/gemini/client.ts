@@ -49,20 +49,27 @@ export interface GenerateImageParams {
   prompt: string
   aspectRatio?: string
   imageSize?: string
+  images?: Array<{ mimeType: string; data: string }>
 }
 
 export async function generateImage(
   apiKey: string,
   params: GenerateImageParams
 ): Promise<GeminiResponse> {
+  const hasImages = params.images && params.images.length > 0
+
+  const parts: Array<Record<string, unknown>> = []
+  if (hasImages) {
+    for (const img of params.images!) {
+      parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } })
+    }
+  }
+  parts.push({ text: params.prompt })
+
   const body: Record<string, unknown> = {
-    contents: [
-      {
-        parts: [{ text: params.prompt }],
-      },
-    ],
+    contents: [{ parts }],
     generationConfig: {
-      responseModalities: ['IMAGE'],
+      responseModalities: hasImages ? ['TEXT', 'IMAGE'] : ['IMAGE'],
     },
   }
 

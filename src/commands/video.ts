@@ -5,13 +5,17 @@ import { getProvider } from '../providers/registry.js'
 import { downloadToFile, inferExtension } from '../utils/download.js'
 import * as out from '../utils/output.js'
 
+function collect(value: string, previous: string[]): string[] {
+  return [...previous, value]
+}
+
 export function createVideoCommand(): Command {
   const video = new Command('video').description('Video generation commands')
 
   video
     .command('generate')
     .description('Generate a video from an image and text prompt')
-    .option('-i, --image <path-or-url>', 'Input image (local file or URL). Required for some providers.')
+    .option('-i, --image <path>', 'Input image (local file or URL, repeat for multiple)', collect, [])
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the motion/scene')
     .option('-m, --model <model>', 'Video model (default varies by provider). Run "mediagen models" to list.')
     .option('-s, --size <ratio>', 'Aspect ratio: 16:9, 9:16, 1:1, 4:3, 3:4')
@@ -37,7 +41,8 @@ Examples:
 Models vary by provider. Run "mediagen models --provider <name>" for the full list.
 Video providers: higgsfield, runway, kling.
 Runway (gen4.5) and Kling support text-to-video (no --image needed).
-Use --duration 5 or --duration 10 for video length (runway, kling).`
+Use --duration 5 or --duration 10 for video length (runway, kling).
+Runway supports 2 images (first/last frame): --image start.png --image end.png`
     )
     .action(async (opts) => {
       const config = loadConfig()
@@ -47,8 +52,10 @@ Use --duration 5 or --duration 10 for video length (runway, kling).`
       const spinner = ora('Generating video...').start()
 
       try {
+        const images: string[] = opts.image
         const result = await provider.generateVideo({
-          image: opts.image,
+          image: images[0],
+          images: images.length > 0 ? images : undefined,
           prompt: opts.prompt,
           model: opts.model,
           size: opts.size,

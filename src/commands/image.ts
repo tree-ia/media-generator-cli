@@ -5,6 +5,10 @@ import { getProvider } from '../providers/registry.js'
 import { downloadToFile, inferExtension } from '../utils/download.js'
 import * as out from '../utils/output.js'
 
+function collect(value: string, previous: string[]): string[] {
+  return [...previous, value]
+}
+
 export function createImageCommand(): Command {
   const image = new Command('image').description('Image generation commands')
 
@@ -12,6 +16,7 @@ export function createImageCommand(): Command {
     .command('generate')
     .description('Generate an image from a text prompt')
     .requiredOption('-p, --prompt <text>', 'Text prompt describing the image')
+    .option('-i, --image <path>', 'Reference image (local file or URL, repeat for multiple)', collect, [])
     .option('-m, --model <model>', 'Model to use (default varies by provider)')
     .option('-s, --size <ratio>', 'Aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:2, 21:9')
     .option('-q, --quality <res>', 'Resolution: 720p, 1080p, 2K, 4K')
@@ -31,12 +36,14 @@ Examples:
   $ mediagen image generate --prompt "modern office building at sunset"
   $ mediagen image generate --prompt "hero banner" --size 16:9 --quality 720p --output ./public/hero.png
   $ mediagen image generate --prompt "landscape" --model seedream --size 16:9 --output ./bg.png
-  $ mediagen image generate --prompt "creative art" --model reve --output ./art.png
+  $ mediagen image generate --prompt "match this brand style" --image ./logo.png --provider gemini --output ./hero.png
+  $ mediagen image generate --prompt "combine these styles" --image ./ref1.png --image ./ref2.png --provider gemini
   $ mediagen image generate --prompt "test" --no-poll
 
 Models vary by provider. Run "mediagen models" for the full list.
 
 Parameters:
+  --image: reference image (repeat for multiple, Gemini up to 14, Runway up to 3)
   --size: aspect ratio (1:1, 16:9, 9:16, 4:3, 3:2, 21:9)
   --quality: resolution (1K, 2K, 4K)
   --provider: override default provider (gemini, freepik, higgsfield, runway, kling)`
@@ -51,6 +58,7 @@ Parameters:
       try {
         const result = await provider.generateImage({
           prompt: opts.prompt,
+          images: opts.image.length > 0 ? opts.image : undefined,
           model: opts.model,
           size: opts.size,
           quality: opts.quality,
